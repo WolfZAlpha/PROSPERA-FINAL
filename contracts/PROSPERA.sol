@@ -1193,7 +1193,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param recipientAddress The address to receive the ETH
      * @param amount The amount of ETH to transfer
      */
-    function _safeTransferETH(address recipientAddress, uint256 amount) private {
+    function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant{
         if (address(this).balance < amount) revert InsufficientBalance();
     
         // Effects
