@@ -40,6 +40,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Tokens allocated for dev wallet
     uint256 private constant DEV_SUPPLY = TOTAL_SUPPLY * 11000 / 100000; // 11%
 
+    /// @notice Enum to define ICO tiers
     enum IcoTier { Tier1, Tier2, Tier3 }
 
     /// @notice Tokens allocated for the ICO
@@ -458,7 +459,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         address _marketingWallet,
         address _teamWallet,
         address _devWallet
-    ) initializer public {
+    ) initializer external {
         __ERC20_init("PROSPERA", "PROS");
         emit Initialized(_deployerWallet);
 
@@ -498,7 +499,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit WalletAddressSet("Team Wallet", _teamWallet);
         emit WalletAddressSet("Dev Wallet", _devWallet);
 
-        // Initialize cases with the updated parameters
         cases[0] = Case({
             maxWallets: 1500,
             maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
@@ -527,7 +527,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         });
         emit StateUpdated("Case", address(0), true);
 
-        // Disable initializers to prevent re-initialization
         _disableInitializers();
         emit StateUpdated("initializersDisabled", address(0), true);
 
@@ -538,19 +537,19 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @notice Authorizes an upgrade to a new implementation
      * @param newImplementation Address of the new implementation
      */
-    function _authorizeUpgrade(address newImplementation) internal onlyOwner override {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @notice Pauses all token transfers
      */
-    function pause() public onlyOwner {
+    function pause() external onlyOwner {
         _pause();
     }
 
     /**
      * @notice Unpauses all token transfers
      */
-    function unpause() public onlyOwner {
+    function unpause() external onlyOwner {
         _unpause();
     }
 
@@ -559,7 +558,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param to The address to receive the minted tokens
      * @param amount The number of tokens to mint
      */
-    function mint(address to, uint256 amount) public onlyOwner {
+    function mint(address to, uint256 amount) external onlyOwner {
         _mint(to, amount);
         emit Transfer(address(0), to, amount);
     }
