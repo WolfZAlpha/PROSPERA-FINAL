@@ -896,8 +896,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _updateCurrentCase() private {
         uint256 totalStakers;
-        for (uint8 i; i < TIER_COUNT; ++i) {
+        for (uint8 i; i < TIER_COUNT;) {
             totalStakers += activeStakers[i];
+            unchecked { ++i; }
         }
 
         if (totalStakers <= cases[0].maxWallets) {
@@ -963,16 +964,18 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         emit SnapshotTaken(block.timestamp);
 
-        for (uint8 i; i < TIER_COUNT; ++i) {
+        for (uint8 i; i < TIER_COUNT;) {
             address[] memory stakers = stakersInTier[i];
             uint256 stakersLength = stakers.length;
-            for (uint256 j; j < stakersLength; ++j) {
+            for (uint256 j; j < stakersLength;) {
                 bool isEligible = _checkEligibility(stakers[j]);
                 quarterlyEligible[stakers[j]] = isEligible;
 
                 emit SnapshotTaken(stakers[j], isEligible);
                 emit StateUpdated("snapshot", stakers[j], true);
+                unchecked { ++j; }
             }
+            unchecked { ++i; }
         }
     }
 
@@ -983,13 +986,14 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _removeStakerFromTier(uint8 tier, address stakerAddress) private {
         uint256 length = stakersInTier[tier].length;
-        for (uint256 i; i < length; ++i) {
+        for (uint256 i; i < length;) {
             if (stakersInTier[tier][i] == stakerAddress) {
                 stakersInTier[tier][i] = stakersInTier[tier][length - 1];
                 stakersInTier[tier].pop();
                 emit StateUpdated("stakersInTier", stakerAddress, false);
                 break;
             }
+            unchecked { ++i; }
         }
     }
 
@@ -1174,12 +1178,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _isHolder(address accountAddress) private view returns (bool isHolder) {
         uint256 holdersLength = holders.length;
-        for (uint256 i; i < holdersLength; ++i) {
+        for (uint256 i; i < holdersLength;) {
             if (holders[i] == accountAddress) {
-                isHolder = true;
+                return true;
             }
+            unchecked { ++i; }
         }
-        isHolder = false;
+        return false;
     }
 
     /**
