@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: PROPRIETARY
-pragma solidity ^0.8.20;
+pragma solidity 0.8.20;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
