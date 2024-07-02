@@ -941,16 +941,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         int256 L = __days + 68569 + 1;
         int256 N = (L * 4) / 146097;
-        L = L - (146097 * N + 3) / 4;
+        L = (L - (146097 * N + 3)) / 4;
         int256 _year = ((L + 1) * 4000) / 1461001;
-        L = L - (1461 * _year) / 4 + 31;
+        L = (L - (1461 * _year)) / (4 + 31);
         int256 _month = (L * 80) / 2447;
-        L = L - (2447 * _month) / 80;
+        L = (L - (2447 * _month)) / 80;
         int256 _day = L;
 
         int256 M = _month / 11;
-        _month = _month + 2 - 12 * M;
-        _year = 100 * (N - 49) + _year + M;
+        _month = _month + 2 - (12 * M);
+        _year = (100 * (N - 49)) + _year + M;
 
         year = uint256(_year);
         month = uint256(_month);
