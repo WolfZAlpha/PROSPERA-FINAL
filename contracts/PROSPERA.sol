@@ -896,9 +896,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _updateCurrentCase() private {
         uint256 totalStakers;
-        for (uint8 i; i < TIER_COUNT;) {
+        for (uint8 i = 0; i < TIER_COUNT; i++) {
             totalStakers += activeStakers[i];
-            unchecked { ++i; }
         }
 
         if (totalStakers <= cases[0].maxWallets) {
@@ -964,18 +963,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         emit SnapshotTaken(block.timestamp);
 
-        for (uint8 i; i < TIER_COUNT;) {
+        for (uint8 i = 0; i < TIER_COUNT; i++) {
             address[] memory stakers = stakersInTier[i];
             uint256 stakersLength = stakers.length;
-            for (uint256 j; j < stakersLength;) {
+            for (uint256 j = 0; j < stakersLength; j++) {
                 bool isEligible = _checkEligibility(stakers[j]);
                 quarterlyEligible[stakers[j]] = isEligible;
 
                 emit SnapshotTaken(stakers[j], isEligible);
                 emit StateUpdated("snapshot", stakers[j], true);
-                unchecked { ++j; }
             }
-            unchecked { ++i; }
         }
     }
 
@@ -986,14 +983,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _removeStakerFromTier(uint8 tier, address stakerAddress) private {
         uint256 length = stakersInTier[tier].length;
-        for (uint256 i; i < length;) {
+        for (uint256 i = 0; i < length; i++) {
             if (stakersInTier[tier][i] == stakerAddress) {
                 stakersInTier[tier][i] = stakersInTier[tier][length - 1];
                 stakersInTier[tier].pop();
                 emit StateUpdated("stakersInTier", stakerAddress, false);
                 break;
             }
-            unchecked { ++i; }
         }
     }
 
@@ -1174,19 +1170,18 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /**
      * @notice Checks if an address is a holder
      * @param accountAddress The address to check
-     * @return isHolder True if the address is a holder, false otherwise
+     * @return True if the address is a holder, false otherwise
      */
-    function _isHolder(address accountAddress) private view returns (bool isHolder) {
+    function _isHolder(address accountAddress) private view returns (bool) {
         uint256 holdersLength = holders.length;
-        for (uint256 i; i < holdersLength;) {
+        for (uint256 i = 0; i < holdersLength; i++) {
             if (holders[i] == accountAddress) {
                 return true;
             }
-            unchecked { ++i; }
         }
         return false;
     }
-
+    
     /**
      * @notice Safely transfers ETH to an address
      * @param recipientAddress The address to receive the ETH
