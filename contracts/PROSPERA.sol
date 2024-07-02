@@ -424,6 +424,18 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Error for fallback function only accepts ETH
     error FallbackFunctionOnlyAcceptsETH();
 
+    /// @notice Error for invalid address
+    error InvalidAddress();
+
+    /// @notice Error for vesting not being active
+    error VestingNotActive();
+
+    /// @notice Error for vesting period not ended
+    error VestingPeriodNotEnded();
+
+    /// @notice Error for attempting to transfer vested tokens
+    error VestedTokensCannotBeTransferred();
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -705,7 +717,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param account The address to be added
      */
     function addToVesting(address account) external onlyOwner {
-        require(account != address(0), "Invalid address");
+        if (account == address(0)) revert InvalidAddress();
         uint256 startTime = block.timestamp;
         uint256 endTime = startTime + 120 days; // Fixed duration of 4 months
         vestingSchedules[account] = Vesting(startTime, endTime, true);
@@ -713,14 +725,15 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StateUpdated("vesting", account, true);
     }
 
+
     /**
      * @notice Releases vested tokens for an address
      * @param account The address to release tokens for
      */
     function releaseVestedTokens(address account) external {
         Vesting memory vesting = vestingSchedules[account];
-        require(vesting.active, "Vesting not active");
-        require(block.timestamp >= vesting.endTime, "Vesting period not ended");
+        if (!vesting.active) revert VestingNotActive();
+        if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
         vestingSchedules[account].active = false;
         emit VestingReleased(account);
         emit StateUpdated("vesting", account, false);
@@ -1218,8 +1231,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param amount The amount of tokens being transferred
      */
     function _transfer(address from, address to, uint256 amount) internal override {
-        if (vestingSchedules[from].active) {
-            require(block.timestamp >= vestingSchedules[from].endTime, "Vested tokens cannot be transferred");
+        if (vestingSchedules[from].active && block.timestamp < vestingSchedules[from].endTime) {
+            revert VestedTokensCannotBeTransferred();
         }
         handleNormalBuySell(from, to, amount);
     }
