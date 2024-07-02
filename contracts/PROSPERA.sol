@@ -342,6 +342,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param user The address of the user
     event RemovedFromWhitelist(address indexed user);
 
+    /// @notice Emitted when ETH is withdrawn from the contract
+    /// @param recipient The address receiving the ETH
+    /// @param amount The amount of ETH withdrawn
+    event EthWithdrawn(address indexed recipient, uint256 amount);
+
     // Errors
     /// @notice Error for blacklisted address
     /// @param account The blacklisted address
@@ -402,6 +407,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Error for ETH transfer failed
     error EthTransferFailed();
+
+    /// @notice Error for insufficient balance in the contract
+    error InsufficientBalance();
+
+    /// @notice Error for when there's no ETH to withdraw
+    error NoEthToWithdraw();
 
     /// @notice Error for transfer from zero address
     error TransferFromZeroAddress();
@@ -1126,19 +1137,18 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         if (msg.value != cost) revert IncorrectETHAmountSent();
 
+        // Update state
         _icoBuys[_msgSender()] += cost;
-        emit IcoBuyUpdated(_msgSender(), _icoBuys[_msgSender()]);
-
         _transfer(prosicoWallet, _msgSender(), tokenAmount);
+
+        // Emit events
+        emit IcoBuyUpdated(_msgSender(), _icoBuys[_msgSender()]);
         emit TokensPurchased(_msgSender(), tokenAmount, cost);
-
-        (bool successIco, ) = icoWallet.call{value: remainingCost}("");
-        if (!successIco) revert TransferToIcoWalletFailed();
-
-        (bool successTax, ) = taxWallet.call{value: totalTaxAmount}("");
-        if (!successTax) revert TransferToTaxWalletFailed();
-
         emit StateUpdated("IcoPurchase", _msgSender(), true);
+
+        // Perform external interactions last
+        _safeTransferETH(icoWallet, remainingCost);
+        _safeTransferETH(taxWallet, totalTaxAmount);
     }
 
     /**
@@ -1155,8 +1165,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function withdrawETH() external onlyOwner nonReentrant {
         address payable ownerPayable = payable(owner());
-        (bool success, ) = ownerPayable.call{value: address(this).balance}("");
-        if (!success) revert EthWithdrawalFailed();
+        uint256 balance = address(this).balance;
+        
+        if (balance == 0) revert NoEthToWithdraw();
+        
+        _safeTransferETH(ownerPayable, balance);
+        
+        emit EthWithdrawn(ownerPayable, balance);
     }
 
     /// @notice Fallback function to receive ETH
@@ -1187,7 +1202,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param recipientAddress The address to receive the ETH
      * @param amount The amount of ETH to transfer
      */
-    function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant {
+    function _safeTransferETH(address recipientAddress, uint256 amount) private {
+        if (address(this).balance < amount) revert InsufficientBalance();
         (bool success, ) = recipientAddress.call{value: amount}("");
         if (!success) revert EthTransferFailed();
     }
