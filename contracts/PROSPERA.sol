@@ -796,13 +796,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
         uint256 dailyYieldDecimal;
 
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**12;
-        else if (tier == 2) dailyYieldDecimal = 75 * 10**11;
-        else if (tier == 3) dailyYieldDecimal = 15 * 10**12;
-        else if (tier == 4) dailyYieldDecimal = 175 * 10**11;
-        else if (tier == 5) dailyYieldDecimal = 225 * 10**11;
-        else if (tier == 6) dailyYieldDecimal = 275 * 10**11;
+        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
+        else if (tier == 1) dailyYieldDecimal = 5 * 10**12;  // 0.005%
+        else if (tier == 2) dailyYieldDecimal = 75 * 10**11; // 0.0075%
+        else if (tier == 3) dailyYieldDecimal = 15 * 10**12; // 0.015%
+        else if (tier == 4) dailyYieldDecimal = 175 * 10**11; // 0.0175%
+        else if (tier == 5) dailyYieldDecimal = 225 * 10**11; // 0.0225%
+        else if (tier == 6) dailyYieldDecimal = 275 * 10**11; // 0.0275%
 
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
@@ -817,13 +817,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
         uint256 dailyYieldDecimal;
 
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**11;
-        else if (tier == 2) dailyYieldDecimal = 75 * 10**10;
-        else if (tier == 3) dailyYieldDecimal = 15 * 10**11;
-        else if (tier == 4) dailyYieldDecimal = 175 * 10**10;
-        else if (tier == 5) dailyYieldDecimal = 225 * 10**10;
-        else if (tier == 6) dailyYieldDecimal = 275 * 10**10;
+        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
+        else if (tier == 1) dailyYieldDecimal = 5 * 10**11;  // 0.0005%
+        else if (tier == 2) dailyYieldDecimal = 75 * 10**10; // 0.00075%
+        else if (tier == 3) dailyYieldDecimal = 15 * 10**11; // 0.0015%
+        else if (tier == 4) dailyYieldDecimal = 175 * 10**10; // 0.00175%
+        else if (tier == 5) dailyYieldDecimal = 225 * 10**10; // 0.00225%
+        else if (tier == 6) dailyYieldDecimal = 275 * 10**10; // 0.00275%
 
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
@@ -838,13 +838,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
         uint256 dailyYieldDecimal;
 
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;
-        else if (tier == 1) dailyYieldDecimal = 25 * 10**10;
-        else if (tier == 2) dailyYieldDecimal = 5 * 10**11;
-        else if (tier == 3) dailyYieldDecimal = 75 * 10**10;
-        else if (tier == 4) dailyYieldDecimal = 1 * 10**12;
-        else if (tier == 5) dailyYieldDecimal = 125 * 10**10;
-        else if (tier == 6) dailyYieldDecimal = 15 * 10**11;
+        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
+        else if (tier == 1) dailyYieldDecimal = 25 * 10**10; // 0.00025%
+        else if (tier == 2) dailyYieldDecimal = 5 * 10**11;  // 0.0005%
+        else if (tier == 3) dailyYieldDecimal = 75 * 10**10; // 0.00075%
+        else if (tier == 4) dailyYieldDecimal = 1 * 10**12;  // 0.001%
+        else if (tier == 5) dailyYieldDecimal = 125 * 10**10; // 0.00125%
+        else if (tier == 6) dailyYieldDecimal = 15 * 10**11;  // 0.0015%
 
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
@@ -859,13 +859,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
         uint256 dailyYieldDecimal;
 
-        if (tier == 0) dailyYieldDecimal = 5 * 10**9;
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**9;
-        else if (tier == 2) dailyYieldDecimal = 1 * 10**10;
-        else if (tier == 3) dailyYieldDecimal = 25 * 10**10;
-        else if (tier == 4) dailyYieldDecimal = 5 * 10**10;
-        else if (tier == 5) dailyYieldDecimal = 1 * 10**11;
-        else if (tier == 6) dailyYieldDecimal = 125 * 10**10;
+        if (tier == 0) dailyYieldDecimal = 5 * 10**9;       // 0.00005%
+        else if (tier == 1) dailyYieldDecimal = 5 * 10**9;  // 0.00005%
+        else if (tier == 2) dailyYieldDecimal = 1 * 10**10; // 0.0001%
+        else if (tier == 3) dailyYieldDecimal = 25 * 10**10; // 0.00025%
+        else if (tier == 4) dailyYieldDecimal = 5 * 10**10; // 0.0005%
+        else if (tier == 5) dailyYieldDecimal = 1 * 10**11; // 0.001%
+        else if (tier == 6) dailyYieldDecimal = 125 * 10**10; // 0.00125%
 
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
@@ -936,21 +936,24 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 SECONDS_PER_DAY = 24 * 60 * 60;
         uint256 OFFSET19700101 = 2440588;
 
+        //conversion
         int256 __days = int256(timestamp / SECONDS_PER_DAY) + int256(OFFSET19700101);
 
-        int256 L = __days + 68569 + 1;
-        int256 N = (L * 4) / 146097;
-        L = L - (146097 * N + 3) / 4;
-        int256 _year = ((L + 1) * 4000) / 1461001;
-        L = L - (1461 * _year) / 4 + 31;
-        int256 _month = (L * 80) / 2447;
-        L = L - (2447 * _month) / 80;
-        int256 _day = L;
+        // I.calc convert Julian days to Gregorian date
+        int256 L = __days + 68569 + 1;  //states the adjustment for the algo
+        int256 N = (L * 4) / 146097; // #of400-yrCycles
+        L = L - (146097 * N + 3) / 4; //Adjust L, remove cycle
+        int256 _year = ((L + 1) * 4000) / 1461001; // year is sorted
+        L = L - (1461 * _year) / 4 + 31; // adjust the l variable for the month calculation
+        int256 _month = (L * 80) / 2447; // determines the month
+        L = L - (2447 * _month) / 80; // Remaining Days for day calculation
+        int256 _day = L; // Calculate day
 
         int256 M = _month / 11;
         _month = _month + 2 - 12 * M;
         _year = 100 * (N - 49) + _year + M;
 
+        //convert results 
         year = uint256(_year);
         month = uint256(_month);
         day = uint256(_day);
@@ -962,6 +965,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function takeSnapshot() external nonReentrant {
         if (!_isQuarterStart(block.timestamp)) revert NotQuarterStart();
 
+        // Emit the contract-wide snapshot event with the current timestamp
         emit SnapshotTaken(block.timestamp);
 
         for (uint8 i; i < TIER_COUNT; ++i) {
@@ -971,6 +975,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
                 bool isEligible = _checkEligibility(stakers[j]);
                 quarterlyEligible[stakers[j]] = isEligible;
 
+                // Emit the user-specific snapshot event
                 emit SnapshotTaken(stakers[j], isEligible);
                 emit StateUpdated("snapshot", stakers[j], true);
             }

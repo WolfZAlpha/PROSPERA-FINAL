@@ -18,6 +18,13 @@ async function main() {
   const teamWallet = "0x891e4ce655ea6080266b43B7aDc4878af9500353"; // Team wallet address
   const devWallet = "0xd0eecB3E6ba57E5b15051882A19413732809c872"; // Dev wallet address
 
+  // Define the vesting wallets
+  const vestingWallets = [
+    "0xAddress1", // Replace with actual vesting wallet addresses
+    "0xAddress2",
+    "0xAddress3"
+  ];
+
   console.log("Deploying contracts with the Gnosis Safe as the deployer...");
 
   const ContractFactory = await ethers.getContractFactory("Prospera");
@@ -54,11 +61,23 @@ async function main() {
 
   await deployment.waitForDeployment();
 
-  console.log(`Proxy deployed to ${await deployment.getAddress()}`);
+  const deployedAddress = await deployment.getAddress();
+  console.log(`Proxy deployed to ${deployedAddress}`);
+
+  // Get the deployed contract instance
+  const prospera = await ethers.getContractAt("Prospera", deployedAddress);
+
+  // Add vesting wallets
+  for (const wallet of vestingWallets) {
+    const tx = await prospera.addToVesting(wallet);
+    await tx.wait();
+    console.log(`Added ${wallet} to vesting schedule`);
+  }
 
   // Transfer ownership to the Gnosis Safe wallet (if not already set)
-  if ((await deployment.owner()) !== gnosisSafeWallet) {
-    await deployment.transferOwnership(gnosisSafeWallet);
+  if ((await prospera.owner()) !== gnosisSafeWallet) {
+    const transferTx = await prospera.transferOwnership(gnosisSafeWallet);
+    await transferTx.wait();
     console.log(`Ownership transferred to Gnosis Safe wallet: ${gnosisSafeWallet}`);
   }
 }
