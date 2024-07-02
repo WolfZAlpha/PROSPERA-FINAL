@@ -137,25 +137,31 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     bool public isStakingEnabled;
 
     /// @notice Mapping of blacklisted addresses
-    mapping(address => bool) private _blacklist;
+    mapping(address user => bool isBlacklisted) private _blacklist;
 
     /// @notice Mapping of staker details
-    mapping(address => Stake) private _stakes;
+    mapping(address staker => Stake stakeInfo) private _stakes;
 
     /// @notice Mapping of rewards for stakers
-    mapping(address => uint256) private _stakeRewards;
+    mapping(address staker => uint256 rewardAmount) private _stakeRewards;
 
     /// @notice Mapping of ICO purchases
-    mapping(address => uint256) private _icoBuys;
+    mapping(address buyer => uint256 purchaseAmount) private _icoBuys;
 
     /// @notice Tracks if a staker is eligible for quarterly revenue share
-    mapping(address => bool) public quarterlyEligible;
+    mapping(address staker => bool isEligible) public quarterlyEligible;
 
     /// @notice Tracks the number of active stakers in each tier
-    mapping(uint8 => uint256) public activeStakers;
+    mapping(uint8 tier => uint256 stakerCount) public activeStakers;
 
     /// @notice Tracks addresses of stakers in each tier
-    mapping(uint8 => address[]) private stakersInTier;
+    mapping(uint8 tier => address[] stakerAddresses) private stakersInTier;
+
+    /// @notice Mapping of vesting schedules for addresses
+    mapping(address user => Vesting vestingInfo) public vestingSchedules;
+
+    /// @notice Mapping of whitelisted addresses
+    mapping(address user => bool isWhitelisted) public whitelist;
 
     /// @notice List of holders
     address[] internal holders;
@@ -206,12 +212,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 endTime;
         bool active;
     }
-
-    /// @notice Mapping of vesting schedules for addresses
-    mapping(address => Vesting) public vestingSchedules;
-
-    /// @notice Mapping of whitelisted addresses
-    mapping(address => bool) public whitelist;
 
     // Events
     /// @notice Emitted when a user is added or removed from the blacklist
@@ -535,9 +535,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @notice Authorizes an upgrade to a new implementation
-     * @param newImplementation Address of the new implementation
+     * @dev This function is left empty but is required by the UUPSUpgradeable contract
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /**
      * @notice Pauses all token transfers
