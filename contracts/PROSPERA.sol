@@ -396,15 +396,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Error for incorrect ETH amount sent
     error IncorrectETHAmountSent();
 
-    /// @notice Error for transfer to ICO wallet failed
-    error TransferToIcoWalletFailed();
-
-    /// @notice Error for transfer to tax wallet failed
-    error TransferToTaxWalletFailed();
-
-    /// @notice Error for ETH withdrawal failed
-    error EthWithdrawalFailed();
-
     /// @notice Error for ETH transfer failed
     error EthTransferFailed();
 
@@ -1204,6 +1195,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _safeTransferETH(address recipientAddress, uint256 amount) private {
         if (address(this).balance < amount) revert InsufficientBalance();
+    
+        // Effects
+        // (No state changes in this function, but if there were, they would go here)
+
+        // Interactions
         (bool success, ) = recipientAddress.call{value: amount}("");
         if (!success) revert EthTransferFailed();
     }
