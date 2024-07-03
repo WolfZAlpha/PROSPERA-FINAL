@@ -513,6 +513,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit WalletAddressSet("Team Wallet", _teamWallet);
         emit WalletAddressSet("Dev Wallet", _devWallet);
 
+        //initialize the cases
         cases[0] = Case({
             maxWallets: 1500,
             maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
@@ -541,6 +542,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         });
         emit StateUpdated("Case", address(0), true);
 
+        // Disable initializers to prevent re-initialization
         _disableInitializers();
         emit StateUpdated("initializersDisabled", address(0), true);
 
@@ -767,7 +769,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _updateReward(address stakerAddress) private {
         uint256 stakedDuration = (block.timestamp - _stakes[stakerAddress].timestamp) / REWARD_INTERVAL;
-        uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0;
+        uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0; // Tier 0 if not locked up
         uint256 calculatedReward;
 
         if (currentCase == 0) {
@@ -1009,8 +1011,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 currentQuarterStart = block.timestamp - (block.timestamp % (90 days));
 
         if (stakeInfo.lockedUp) {
+            // Eligibility criteria for locked-up stakes
             isEligible = stakeInfo.amount >= 60000 * 10**18;
         } else {
+            // Eligibility criteria for non-locked-up stakes
             isEligible = stakeInfo.amount >= 70000 * 10**18 && stakeInfo.timestamp <= currentQuarterStart;
         }
     }
@@ -1052,6 +1056,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _burn(senderAddress, burnAmount);
         _transfer(senderAddress, recipientAddress, transferAmount);
 
+        // State changes before external calls
         _safeTransferETH(taxWallet, ethTaxAmount);
 
         emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, ethTaxAmount);
@@ -1064,18 +1069,29 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function buyTokens(uint256 tokenAmount) external payable nonReentrant whenNotPaused {
         if (_blacklist[_msgSender()]) revert BlacklistedAddress(_msgSender());
         if (!icoActive) revert IcoNotActive();
-        uint256 remainingTokens = tokenAmount;
-        uint256 cost;
+    
         uint256 ethValue = msg.value;
 
+        // Check minimum and maximum buy limit
         if (ethValue < MIN_ICO_BUY) revert BelowMinIcoBuyLimit();
         if (_icoBuys[_msgSender()] + ethValue > MAX_ICO_BUY) revert ExceedsMaxIcoBuyLimit();
 
+        // Calculate the ICO tax
+        uint256 totalTaxAmount = ethValue * ICO_TAX_RATE / 100;
+        uint256 remainingEth = ethValue - totalTaxAmount;
+
+        // Calculate the token amount based on the remaining ETH after tax
+        uint256 remainingTokens = tokenAmount;
+        uint256 cost;
+        uint256 tokensToBuy;
+        uint256 tierCost;
+
+        // Calculate cost and update state before external calls
         while (remainingTokens > 0) {
             if (currentTier == IcoTier.Tier1) {
                 uint256 availableTokens = TIER1_TOKENS - tier1Sold;
-                uint256 tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
-                uint256 tierCost = tokensToBuy * TIER1_PRICE / 10**18;
+                tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
+                tierCost = tokensToBuy * TIER1_PRICE / 10**18;
 
                 cost += tierCost;
                 tier1Sold += tokensToBuy;
@@ -1089,10 +1105,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
                     emit CurrentTierUpdated(IcoTier.Tier2);
                     emit StateUpdated("CurrentTier", _msgSender(), true);
                 }
+
             } else if (currentTier == IcoTier.Tier2) {
                 uint256 availableTokens = TIER2_TOKENS - tier2Sold;
-                uint256 tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
-                uint256 tierCost = tokensToBuy * TIER2_PRICE / 10**18;
+                tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
+                tierCost = tokensToBuy * TIER2_PRICE / 10**18;
 
                 cost += tierCost;
                 tier2Sold += tokensToBuy;
@@ -1108,8 +1125,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
                 }
             } else if (currentTier == IcoTier.Tier3) {
                 uint256 availableTokens = TIER3_TOKENS - tier3Sold;
-                uint256 tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
-                uint256 tierCost = tokensToBuy * TIER3_PRICE / 10**18;
+                tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
+                tierCost = tokensToBuy * TIER3_PRICE / 10**18;
 
                 cost += tierCost;
                 tier3Sold += tokensToBuy;
@@ -1127,10 +1144,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             }
         }
 
-        uint256 totalTaxAmount = cost * ICO_TAX_RATE / 100;
-        uint256 remainingCost = cost - totalTaxAmount;
-
-        if (msg.value != cost) revert IncorrectETHAmountSent();
+        if (remainingEth < cost) revert IncorrectETHAmountSent();
 
         // Update state
         _icoBuys[_msgSender()] += cost;
@@ -1142,7 +1156,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StateUpdated("IcoPurchase", _msgSender(), true);
 
         // Perform external interactions last
-        _safeTransferETH(icoWallet, remainingCost);
+        _safeTransferETH(icoWallet, cost);
         _safeTransferETH(taxWallet, totalTaxAmount);
     }
 
