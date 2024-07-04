@@ -806,50 +806,54 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @notice Calculates the reward for Case 0 (up to 1,500 wallets)
-     * @param amount The amount staked
+     * @param amount The amount of tokens staked
      * @param tier The tier of the staker
-     * @param stakedDuration The duration the tokens have been staked
-     * @return reward The calculated reward
+     * @param stakedDuration The duration for which the tokens have been staked (in days)
+     * @return reward The calculated reward in tokens
      */
     function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[0].dailyYieldPercentage[tier];
-        reward = ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        uint256 stakedAmount = amount; // Explicitly use amount
+        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /**
      * @notice Calculates the reward for Case 1 (up to 3,000 wallets)
-     * @param amount The amount staked
+     * @param amount The amount of tokens staked
      * @param tier The tier of the staker
-     * @param stakedDuration The duration the tokens have been staked
-     * @return reward The calculated reward
+     * @param stakedDuration The duration for which the tokens have been staked (in days)
+     * @return reward The calculated reward in tokens
      */
     function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[1].dailyYieldPercentage[tier];
-        reward = ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        uint256 stakedAmount = amount; // Explicitly use amount
+        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /**
      * @notice Calculates the reward for Case 2 (up to 10,000 wallets)
-     * @param amount The amount staked
+     * @param amount The amount of tokens staked
      * @param tier The tier of the staker
-     * @param stakedDuration The duration the tokens have been staked
-     * @return reward The calculated reward
+     * @param stakedDuration The duration for which the tokens have been staked (in days)
+     * @return reward The calculated reward in tokens
      */
     function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[2].dailyYieldPercentage[tier];
-        reward = ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        uint256 stakedAmount = amount; // Explicitly use amount
+        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /**
      * @notice Calculates the reward for Case 3 (up to 20,000 wallets)
-     * @param amount The amount staked
+     * @param amount The amount of tokens staked
      * @param tier The tier of the staker
-     * @param stakedDuration The duration the tokens have been staked
-     * @return reward The calculated reward
+     * @param stakedDuration The duration for which the tokens have been staked (in days)
+     * @return reward The calculated reward in tokens
      */
     function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[3].dailyYieldPercentage[tier];
-        reward = ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        uint256 stakedAmount = amount; // Explicitly use amount
+        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /**
