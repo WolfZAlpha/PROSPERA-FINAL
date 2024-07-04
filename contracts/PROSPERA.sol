@@ -923,17 +923,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 SECONDS_PER_DAY = 24 * 60 * 60;
         uint256 OFFSET19700101 = 2440588;
 
-        int256 julianDays = int256(timestamp / SECONDS_PER_DAY) + int256(OFFSET19700101);
-
-        // Convert Julian days to Gregorian date
-        int256 j = julianDays + 68569 + 1;
+        int256 j = int256(timestamp / SECONDS_PER_DAY) + int256(OFFSET19700101) + 68569 + 1;
         int256 fourHundredYearCycles = (j * 4) / 146097;
     
-        j = j - (146097 * fourHundredYearCycles + 3) / 4;
-        int256 _year = ((j + 1) * 4000) / 1461001;
-        j = j - (1461 * _year) / 4 + 31;
-        int256 _month = (j * 80) / 2447;
-        int256 _day = j - (2447 * _month) / 80;
+        int256 _year = (((j - (146097 * fourHundredYearCycles + 3) / 4) + 1) * 4000) / 1461001;
+        int256 _month = ((j - (146097 * fourHundredYearCycles + 3) / 4 - (1461 * _year) / 4 + 31) * 80) / 2447;
+        int256 _day = j - (146097 * fourHundredYearCycles + 3) / 4 - (1461 * _year) / 4 + 31 - (2447 * _month) / 80;
 
         j = _month / 11;
         _month = _month + 2 - 12 * j;
