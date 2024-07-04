@@ -214,26 +214,28 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint8 vestingType; // 0 for marketing, 1 for team
     }
 
-    // Events
+    // User Management Events
     /// @notice Emitted when a user is added or removed from the blacklist
     /// @param user The address of the user
     /// @param value The new blacklist status
     event BlacklistUpdated(address indexed user, bool value);
 
+    /// @notice Emitted when a user is added to the whitelist
+    /// @param user The address of the user
+    event AddedToWhitelist(address indexed user);
+
+    /// @notice Emitted when a user is removed from the whitelist
+    /// @param user The address of the user
+    event RemovedFromWhitelist(address indexed user);
+
+    /// @notice Emitted when a new address is added to the holders list
+    /// @param user The address of the new holder
+    event HolderAdded(address indexed user);
+
+    // Staking Events
     /// @notice Emitted when staking is enabled or disabled
     /// @param enabled The new staking status
     event StakingEnabled(bool indexed enabled);
-
-    /// @notice Emitted when revenue is shared
-    /// @param user The address of the user
-    /// @param amount The amount of revenue shared
-    event RevenueShared(address indexed user, uint256 amount);
-
-    /// @notice Emitted when tokens are purchased during the ICO
-    /// @param buyer The address of the buyer
-    /// @param amount The amount of tokens purchased
-    /// @param price The price of the tokens
-    event TokensPurchased(address indexed buyer, uint256 amount, uint256 price);
 
     /// @notice Emitted when tokens are staked
     /// @param user The address of the user
@@ -253,24 +255,54 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param lockDuration The duration for which the tokens are locked
     event TokensLocked(address indexed user, uint256 amount, uint256 lockDuration);
 
-    /// @notice Emitted when a snapshot is taken
-    /// @param timestamp The timestamp of the snapshot
-    event SnapshotTaken(uint256 indexed timestamp);
+    /// @notice Emitted when tokens are burned as part of the staking process
+    /// @param user The address of the user whose tokens were burned
+    /// @param amount The amount of tokens that were burned
+    event TokensBurned(address indexed user, uint256 amount);
 
-    /// @notice Emitted when the contract is initialized
-    /// @param deployer The address of the deployer
-    event Initialized(address indexed deployer);
+    /// @notice Emitted when a staker is added to a new tier
+    /// @param user The address of the staker who was added to the tier
+    /// @param tier The tier number to which the staker was added
+    event StakerAddedToTier(address indexed user, uint8 tier);
+
+    /// @notice Emitted when a stake is created or updated
+    /// @param user The address of the user whose stake was updated
+    /// @param amount The new staked amount
+    /// @param tier The tier of the stake
+    /// @param isLockedUp Whether the stake is locked up
+    /// @param lockupDuration The duration for which the stake is locked (in seconds)
+    event StakeUpdated(address indexed user, uint256 amount, uint8 tier, bool isLockedUp, uint256 lockupDuration);
+
+    /// @notice Emitted when the count of active stakers in a tier changes
+    /// @param tier The tier number
+    /// @param count The new count of active stakers in the tier
+    event ActiveStakersUpdated(uint8 tier, uint256 count);
+
+    // Reward Events
+    /// @notice Emitted when revenue is shared
+    /// @param user The address of the user
+    /// @param amount The amount of revenue shared
+    event RevenueShared(address indexed user, uint256 amount);
+
+    /// @notice Emitted when rewards are distributed to a user
+    /// @param user The address of the user
+    /// @param reward The amount of reward distributed
+    event RewardsDistributed(address indexed user, uint256 reward);
+
+    /// @notice Emitted when a user's reward is updated
+    /// @param user The address of the user
+    /// @param reward The new reward amount
+    event RewardUpdated(address indexed user, uint256 reward);
+
+    // ICO Events
+    /// @notice Emitted when tokens are purchased during the ICO
+    /// @param buyer The address of the buyer
+    /// @param amount The amount of tokens purchased
+    /// @param price The price of the tokens
+    event TokensPurchased(address indexed buyer, uint256 amount, uint256 price);
 
     /// @notice Emitted when the ICO ends
     event IcoEnded();
-
-    /// @notice Emitted when tokens are transferred with tax and burn applied
-    /// @param sender The address of the sender
-    /// @param recipient The address of the recipient
-    /// @param amount The amount of tokens transferred
-    /// @param burnAmount The amount of tokens burned
-    /// @param taxAmount The amount of tokens taxed
-    event TransferWithTaxAndBurn(address indexed sender, address indexed recipient, uint256 amount, uint256 burnAmount, uint256 taxAmount);
 
     /// @notice Emitted when the ICO tier changes
     /// @param newTier The new ICO tier
@@ -281,12 +313,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param newBuyAmount The new ICO purchase amount
     event IcoBuyUpdated(address indexed buyer, uint256 newBuyAmount);
 
-    /// @notice Emitted when the state of a variable is updated
-    /// @param variable The name of the variable
-    /// @param account The address of the account (if applicable)
-    /// @param value The new value of the variable
-    event StateUpdated(string variable, address indexed account, bool value);
-
     /// @notice Emitted when the number of tokens sold in an ICO tier is updated
     /// @param tier The ICO tier
     /// @param soldAmount The number of tokens sold
@@ -296,24 +322,49 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param newTier The new ICO tier
     event CurrentTierUpdated(IcoTier indexed newTier);
 
+    // Token Transfer Events
+    /// @notice Emitted when tokens are transferred with tax and burn applied
+    /// @param sender The address of the sender
+    /// @param recipient The address of the recipient
+    /// @param amount The amount of tokens transferred
+    /// @param burnAmount The amount of tokens burned
+    /// @param taxAmount The amount of tokens taxed
+    event TransferWithTaxAndBurn(address indexed sender, address indexed recipient, uint256 amount, uint256 burnAmount, uint256 taxAmount);
+
+    // Vesting Events
+    /// @notice Emitted when a vesting schedule is added
+    /// @param user The address of the user
+    /// @param startTime The start time of the vesting
+    /// @param endTime The end time of the vesting
+    event VestingAdded(address indexed user, uint256 startTime, uint256 endTime);
+
+    /// @notice Emitted when vested tokens are released
+    /// @param user The address of the user
+    event VestingReleased(address indexed user);
+
+    // System Events
+    /// @notice Emitted when a snapshot is taken
+    /// @param timestamp The timestamp of the snapshot
+    event SnapshotTaken(uint256 indexed timestamp);
+
+    /// @notice Emitted when the contract is initialized
+    /// @param deployer The address of the deployer
+    event Initialized(address indexed deployer);
+
+    /// @notice Emitted when the state of a variable is updated
+    /// @param variable The name of the variable
+    /// @param account The address of the account (if applicable)
+    /// @param value The new value of the variable
+    event StateUpdated(string variable, address indexed account, bool value);
+
     /// @notice Emitted when a snapshot is taken for a user
     /// @param user The address of the user
     /// @param isEligible Whether the user is eligible for the snapshot
     event SnapshotTaken(address indexed user, bool isEligible);
 
-    /// @notice Emitted when rewards are distributed to a user
-    /// @param user The address of the user
-    /// @param reward The amount of reward distributed
-    event RewardsDistributed(address indexed user, uint256 reward);
-
     /// @notice Emitted when the current case is updated
     /// @param currentCase The new current case
     event CurrentCaseUpdated(uint8 indexed currentCase);
-
-    /// @notice Emitted when a user's reward is updated
-    /// @param user The address of the user
-    /// @param reward The new reward amount
-    event RewardUpdated(address indexed user, uint256 reward);
 
     /// @notice Emitted when the tier capacity is checked
     /// @param tier The tier number
@@ -325,29 +376,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param walletAddress The address of the wallet
     event WalletAddressSet(string indexed walletType, address indexed walletAddress);
 
-    /// @notice Emitted when a vesting schedule is added
-    /// @param user The address of the user
-    /// @param startTime The start time of the vesting
-    /// @param endTime The end time of the vesting
-    event VestingAdded(address indexed user, uint256 startTime, uint256 endTime);
-
-    /// @notice Emitted when vested tokens are released
-    /// @param user The address of the user
-    event VestingReleased(address indexed user);
-
-    /// @notice Emitted when a user is added to the whitelist
-    /// @param user The address of the user
-    event AddedToWhitelist(address indexed user);
-
-    /// @notice Emitted when a user is removed from the whitelist
-    /// @param user The address of the user
-    event RemovedFromWhitelist(address indexed user);
-
     /// @notice Emitted when ETH is withdrawn from the contract
     /// @param recipient The address receiving the ETH
     /// @param amount The amount of ETH withdrawn
     event EthWithdrawn(address indexed recipient, uint256 amount);
-
     // Errors
     /// @notice Error for blacklisted address
     /// @param account The blacklisted address
@@ -627,12 +659,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint8 tier = _getTierByStakeAmount(stakeAmount);
 
         _burn(_msgSender(), stakeAmount);
+        emit TokensBurned(_msgSender(), stakeAmount); // New event
 
         if (_stakes[_msgSender()].amount > 0) {
             _updateReward(_msgSender());
         } else {
             stakersInTier[tier].push(_msgSender());
-            emit StateUpdated("stakersInTier", _msgSender(), true);
+            emit StakerAddedToTier(_msgSender(), tier); // New event
         }
 
         _stakes[_msgSender()] = Stake({
@@ -642,12 +675,14 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             lockedUp: isLockedUp,
             lockupDuration: lockDuration
         });
+        emit StakeUpdated(_msgSender(), stakeAmount, tier, isLockedUp, lockDuration); // New event
+
         ++activeStakers[tier];
-        emit StateUpdated("activeStakers", _msgSender(), true);
+        emit ActiveStakersUpdated(tier, activeStakers[tier]); // New event
 
         if (!_isHolder(_msgSender())) {
             holders.push(_msgSender());
-            emit StateUpdated("holders", _msgSender(), true);
+            emit HolderAdded(_msgSender()); // New event
         }
 
         _updateCurrentCase();
