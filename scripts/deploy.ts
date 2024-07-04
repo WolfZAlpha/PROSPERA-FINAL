@@ -18,11 +18,14 @@ async function main() {
   const teamWallet = "0x891e4ce655ea6080266b43B7aDc4878af9500353"; // Team wallet address
   const devWallet = "0xd0eecB3E6ba57E5b15051882A19413732809c872"; // Dev wallet address
 
-  // Define the vesting wallets
+  // Define the vesting wallets and types (0 for marketing, 1 for team)
   const vestingWallets = [
-    "0xAddress1", // Replace with actual vesting wallet addresses
-    "0xAddress2",
-    "0xAddress3"
+    { address: "0xb6b6E3a54BCAF861ac456b38D15389dC8E638450", vestingType: 0 }, // mi1
+    { address: "0x0fcD04410E6DA9339c1578C9f7aC1e48AED4B73C", vestingType: 0 }, // bns
+    { address: "0x156841B0541F11522656A8FA6d0542B737754E8e", vestingType: 0 }, // Mch
+    { address: "0xB50516982524DFF3d8d563F46AD54891Aa61944E", vestingType: 1 }, // fl
+    { address: "0x89D6a038D902fEAb8c506C3F392b1B91CA8461B7", vestingType: 1 }, // 7w
+    { address: "0x810999FAAe498DCb4e46736c6f901DDCd51D3a01", vestingType: 1 }, // z
   ];
 
   console.log("Deploying contracts with the Gnosis Safe as the deployer...");
@@ -67,11 +70,11 @@ async function main() {
   // Get the deployed contract instance
   const prospera = await ethers.getContractAt("Prospera", deployedAddress);
 
-  // Add vesting wallets
+  // Add vesting wallets with their respective types
   for (const wallet of vestingWallets) {
-    const tx = await prospera.addToVesting(wallet);
+    const tx = await prospera.addToVesting(wallet.address, wallet.vestingType);
     await tx.wait();
-    console.log(`Added ${wallet} to vesting schedule`);
+    console.log(`Added ${wallet.address} to vesting schedule with type ${wallet.vestingType}`);
   }
 
   // Transfer ownership to the Gnosis Safe wallet (if not already set)

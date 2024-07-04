@@ -158,7 +158,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     mapping(uint8 tier => address[] stakerAddresses) private stakersInTier;
 
     /// @notice Mapping of vesting schedules for addresses
-    mapping(address user => Vesting vestingInfo) public vestingSchedules;
+    mapping(address user => Vesting[]) public vestingSchedules;
 
     /// @notice Mapping of whitelisted addresses
     mapping(address user => bool isWhitelisted) public whitelist;
@@ -211,6 +211,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 startTime;
         uint256 endTime;
         bool active;
+        uint8 vestingType; // 0 for marketing, 1 for team
     }
 
     // Events
@@ -517,28 +518,28 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         cases[0] = Case({
             maxWallets: 1500,
             maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.005 * 10**18), uint256(0.0075 * 10**18), uint256(0.015 * 10**18), uint256(0.0175 * 10**18), uint256(0.0225 * 10**18), uint256(0.0275 * 10**18)]
+            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
         cases[1] = Case({
             maxWallets: 3000,
             maxWalletsPerTier: [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]
+            dailyYieldPercentage: [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
         cases[2] = Case({
             maxWallets: 10000,
             maxWalletsPerTier: [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.00025 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.001 * 10**18), uint256(0.00125 * 10**18), uint256(0.0015 * 10**18)]
+            dailyYieldPercentage: [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
         cases[3] = Case({
             maxWallets: 20000,
             maxWalletsPerTier: [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100],
-            dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.00005 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.0005 * 10**18), uint256(0.001 * 10**18), uint256(0.00125 * 10**18)]
+            dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
@@ -619,7 +620,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function stake(uint256 stakeAmount, bool isLockedUp, uint256 lockDuration) external nonReentrant whenNotPaused {
         if (_blacklist[_msgSender()]) revert BlacklistedAddress(_msgSender());
-        if (!isStakingEnabled && !vestingSchedules[_msgSender()].active && !whitelist[_msgSender()]) revert StakingNotEnabled();
+        if (!isStakingEnabled && !vestingSchedules[_msgSender()][0].active && !whitelist[_msgSender()]) revert StakingNotEnabled();
         if (stakeAmount == 0) revert CannotStakeZeroTokens();
         if (isLockedUp && (lockDuration < MIN_STAKE_DURATION || lockDuration > MAX_STAKE_DURATION)) revert InvalidLockupDuration();
 
@@ -720,27 +721,34 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @notice Adds an address to the vesting schedule
      * @param account The address to be added
      */
-    function addToVesting(address account) external onlyOwner {
+    function addToVesting(address account, uint8 vestingType) external onlyOwner {
         if (account == address(0)) revert InvalidAddress();
         uint256 startTime = block.timestamp;
-        uint256 endTime = startTime + 120 days; // Fixed duration of 4 months
-        vestingSchedules[account] = Vesting(startTime, endTime, true);
+        uint256 endTime;
+        if (vestingType == 0) {
+            endTime = startTime + 120 days; // 4 months for marketing
+        } else {
+            endTime = startTime + 90 days; // 3 months for team
+        }
+        vestingSchedules[account].push(Vesting(startTime, endTime, true, vestingType));
         emit VestingAdded(account, startTime, endTime);
         emit StateUpdated("vesting", account, true);
     }
-
 
     /**
      * @notice Releases vested tokens for an address
      * @param account The address to release tokens for
      */
     function releaseVestedTokens(address account) external {
-        Vesting memory vesting = vestingSchedules[account];
-        if (!vesting.active) revert VestingNotActive();
-        if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
-        vestingSchedules[account].active = false;
-        emit VestingReleased(account);
-        emit StateUpdated("vesting", account, false);
+        Vesting[] storage vestings = vestingSchedules[account];
+        for (uint256 i = 0; i < vestings.length; i++) {
+            Vesting storage vesting = vestings[i];
+            if (!vesting.active) continue;
+            if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
+            vesting.active = false;
+            emit VestingReleased(account);
+            emit StateUpdated("vesting", account, false);
+        }
     }
 
     /**
@@ -782,6 +790,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             calculatedReward = _calculateCase3Reward(_stakes[stakerAddress].amount, stakerTier, stakedDuration);
         }
 
+        // Apply burn rate to the reward if the stake is not locked up
+        if (!_stakes[stakerAddress].lockedUp) {
+            uint256 burnAmount = calculatedReward * BURN_RATE / 100;
+            calculatedReward -= burnAmount;
+            _burn(stakingWallet, burnAmount);
+        }
+
         _stakeRewards[stakerAddress] = calculatedReward;
 
         emit RewardUpdated(stakerAddress, calculatedReward);
@@ -795,17 +810,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**12;  // 0.005%
-        else if (tier == 2) dailyYieldDecimal = 75 * 10**11; // 0.0075%
-        else if (tier == 3) dailyYieldDecimal = 15 * 10**12; // 0.015%
-        else if (tier == 4) dailyYieldDecimal = 175 * 10**11; // 0.0175%
-        else if (tier == 5) dailyYieldDecimal = 225 * 10**11; // 0.0225%
-        else if (tier == 6) dailyYieldDecimal = 275 * 10**11; // 0.0275%
-
+    function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[0].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
@@ -816,17 +822,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**11;  // 0.0005%
-        else if (tier == 2) dailyYieldDecimal = 75 * 10**10; // 0.00075%
-        else if (tier == 3) dailyYieldDecimal = 15 * 10**11; // 0.0015%
-        else if (tier == 4) dailyYieldDecimal = 175 * 10**10; // 0.00175%
-        else if (tier == 5) dailyYieldDecimal = 225 * 10**10; // 0.00225%
-        else if (tier == 6) dailyYieldDecimal = 275 * 10**10; // 0.00275%
-
+    function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[1].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
@@ -837,17 +834,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
-        else if (tier == 1) dailyYieldDecimal = 25 * 10**10; // 0.00025%
-        else if (tier == 2) dailyYieldDecimal = 5 * 10**11;  // 0.0005%
-        else if (tier == 3) dailyYieldDecimal = 75 * 10**10; // 0.00075%
-        else if (tier == 4) dailyYieldDecimal = 1 * 10**12;  // 0.001%
-        else if (tier == 5) dailyYieldDecimal = 125 * 10**10; // 0.00125%
-        else if (tier == 6) dailyYieldDecimal = 15 * 10**11;  // 0.0015%
-
+    function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[2].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
@@ -858,17 +846,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**9;       // 0.00005%
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**9;  // 0.00005%
-        else if (tier == 2) dailyYieldDecimal = 1 * 10**10; // 0.0001%
-        else if (tier == 3) dailyYieldDecimal = 25 * 10**10; // 0.00025%
-        else if (tier == 4) dailyYieldDecimal = 5 * 10**10; // 0.0005%
-        else if (tier == 5) dailyYieldDecimal = 1 * 10**11; // 0.001%
-        else if (tier == 6) dailyYieldDecimal = 125 * 10**10; // 0.00125%
-
+    function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[3].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
@@ -1051,7 +1030,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function handleNormalBuySell(address senderAddress, address recipientAddress, uint256 amount) private {
         uint256 ethTaxAmount = amount * TAX_RATE / 100;
         uint256 burnAmount = amount * BURN_RATE / 100;
-        uint256 transferAmount = amount - burnAmount - ethTaxAmount;
+        uint256 transferAmount = amount - burnAmount;
 
         _burn(senderAddress, burnAmount);
         _transfer(senderAddress, recipientAddress, transferAmount);
@@ -1233,15 +1212,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         if (recipientAddress == address(0)) revert TransferToZeroAddress();
 
         uint256 burnAmount = amount * BURN_RATE / 100;
-        uint256 taxAmount = amount * TAX_RATE / 100;
-        uint256 transferAmount = amount - burnAmount - taxAmount;
+        uint256 transferAmount = amount - burnAmount;
 
         _burn(senderAddress, burnAmount);
         _transfer(senderAddress, recipientAddress, transferAmount);
 
-        _safeTransferETH(taxWallet, taxAmount);
-
-        emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, taxAmount);
+        emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, 0);
     }
 
     /**
@@ -1255,15 +1231,39 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     /**
-     * @notice Transfers tokens with vesting check
+     * @notice Transfers tokens with vesting check and normal buy/sell handling
      * @param from The address sending the tokens
      * @param to The address receiving the tokens
      * @param amount The amount of tokens being transferred
      */
     function _transfer(address from, address to, uint256 amount) internal override {
-        if (vestingSchedules[from].active && block.timestamp < vestingSchedules[from].endTime) {
-            revert VestedTokensCannotBeTransferred();
+        Vesting[] storage vestings = vestingSchedules[from];
+        for (uint256 i = 0; i < vestings.length; i++) {
+            if (vestings[i].active && block.timestamp < vestings[i].endTime) {
+                revert VestedTokensCannotBeTransferred();
+            }
         }
-        handleNormalBuySell(from, to, amount);
+
+        // Handle normal buy/sell transactions
+        if (isBuySell(from, to)) {
+            handleNormalBuySell(from, to, amount);
+        } else {
+            // Handle simple transfers without tax and burn
+            super._transfer(from, to, amount);
+        }
+    }
+
+    /**
+     * @notice Determines if a transfer is a buy/sell transaction
+     * @param from The address sending the tokens
+     * @param to The address receiving the tokens
+     * @return True if it is a buy/sell transaction, false otherwise
+     */
+    function isBuySell(address from, address to) private view returns (bool) {
+        // Define conditions to determine if the transfer is a buy/sell transaction
+        // This can be based on whether 'from' or 'to' is a known exchange or liquidity pool
+        // For simplicity, this example assumes that buy/sell transactions are transfers involving the taxWallet or icoWallet
+
+        return from == taxWallet || to == taxWallet || from == icoWallet || to == icoWallet;
     }
 }
