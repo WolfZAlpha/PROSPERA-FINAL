@@ -720,32 +720,19 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /**
      * @notice Adds an address to the vesting schedule
      * @param account The address to be added
-     * @param vestingType The type of vesting (0 for marketing, 1 for team)
      */
     function addToVesting(address account, uint8 vestingType) external onlyOwner {
         if (account == address(0)) revert InvalidAddress();
-        
         uint256 startTime = block.timestamp;
         uint256 endTime;
-        bool isActive = true; // Explicitly define the boolean value
-
         if (vestingType == 0) {
             endTime = startTime + 120 days; // 4 months for marketing
         } else {
             endTime = startTime + 90 days; // 3 months for team
         }
-
-        Vesting memory newVesting = Vesting({
-            startTime: startTime,
-            endTime: endTime,
-            active: isActive,
-            vestingType: vestingType
-        });
-
-        vestingSchedules[account].push(newVesting);
-        
+        vestingSchedules[account].push(Vesting(startTime, endTime, true, vestingType));
         emit VestingAdded(account, startTime, endTime);
-        emit StateUpdated("vesting", account, isActive);
+        emit StateUpdated("vesting", account, true);
     }
 
     /**
@@ -754,7 +741,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function releaseVestedTokens(address account) external {
         Vesting[] storage vestings = vestingSchedules[account];
-        for (uint256 i = 0; i < vestings.length; ++i) {
+        uint256 vestingsLength = vestings.length;
+        for (uint256 i = 0; i < vestingsLength; ++i) {
             Vesting storage vesting = vestings[i];
             if (!vesting.active) continue;
             if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
@@ -919,6 +907,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         (uint256 year, uint256 month, ) = _timestampToDate(timestamp);
         isQuarterStart = (month == 1 || month == 4 || month == 7 || month == 10);
     }
+    
     /**
      * @notice Converts a timestamp to a date
      * @param timestamp The timestamp to convert
