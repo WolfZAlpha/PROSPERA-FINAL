@@ -9,11 +9,12 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import "abdk-libraries-solidity/ABDKMath64x64.sol";
 
 /// @custom:security-contact security@prosperadefi.com
 contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
 
-    /// @notice Total supply of tokens
+/// @notice Total supply of tokens
     uint256 private constant TOTAL_SUPPLY = 1e9 * 10**18;
 
     /// @notice Tokens allocated for staking rewards
@@ -133,6 +134,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Maximum amount of ETH that can be used by a single wallet to buy tokens in the ICO
     uint256 public constant MAX_ICO_BUY = 500000 ether;
 
+    /// @notice Number of seconds in a day, represented in 64.64 fixed point
+    int128 private constant SECONDS_PER_DAY = 0x545ac0000000000000; // 86400 in 64x64 fixed point
+
+    /// @notice Offset for Unix epoch in Julian days, represented in 64.64 fixed point
+    int128 private constant OFFSET19700101 = 0x24bd0000000000000000; // 2440588 in 64x64 fixed point
+
     /// @notice Indicates if staking is enabled
     bool public isStakingEnabled;
 
@@ -212,6 +219,19 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 endTime;
         bool active;
     }
+
+    /// @notice Struct for high-precision integer arithmetic
+    struct Int512 {
+        int256 high;
+        uint256 low;
+    }
+
+    /// @notice Leap second table (Unix timestamps of leap seconds)
+    uint256[] private leapSeconds = [
+        78796800, 94694400, 126230400, 157766400, 189302400, 220924800, 252460800, 283996800, 315532800,
+        362793600, 394329600, 425865600, 489024000, 567993600, 631152000, 662688000, 709948800, 741484800,
+        773020800, 820454400, 867715200, 915148800, 1136073600, 1230768000, 1341100800, 1435708800, 1483228800
+    ];
 
     // Events
     /// @notice Emitted when a user is added or removed from the blacklist
@@ -901,43 +921,97 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit CurrentCaseUpdated(currentCase);
         emit StateUpdated("currentCase", address(0), true);
     }
-
+    
     /**
-     * @notice Checks if the current timestamp is the start of a new quarter
-     * @param timestamp The timestamp to check
-     * @return isQuarterStart True if it is the start of a new quarter, false otherwise
+     * @notice Converts a timestamp to a date with maximum precision
+     * @param timestamp The timestamp to convert (in seconds since Unix epoch)
+     * @return year The year
+     * @return month The month (1-12)
+     * @return day The day of the month (1-31)
+     * @return hour The hour (0-23)
+     * @return minute The minute (0-59)
+     * @return second The second (0-59)
+     * @return millisecond The millisecond (0-999)
      */
-    function _isQuarterStart(uint256 timestamp) private pure returns (bool isQuarterStart) {
-        (uint256 year, uint256 month, ) = _timestampToDate(timestamp);
-        isQuarterStart = (month == 1 || month == 4 || month == 7 || month == 10);
+    function _timestampToDate(uint256 timestamp) private view returns (
+        uint256 year, uint256 month, uint256 day, 
+        uint256 hour, uint256 minute, uint256 second, uint256 millisecond
+    ) {
+        timestamp = adjustForLeapSeconds(timestamp);
+
+        uint256 wholeSeconds = timestamp / 1000;
+        millisecond = timestamp % 1000;
+
+        Int512 memory julianDay = addInt512(
+            divideInt512(
+                multiplyInt512(Int512(0, wholeSeconds), Int512(0, 86400)),
+                Int512(0, 86400)
+            ),
+            Int512(0, 2440588)
+        );
+
+        Int512 memory j = addInt512(julianDay, Int512(0, 32044));
+        Int512 memory g = divideInt512(j, Int512(0, 146097));
+        Int512 memory dg = subtractInt512(j, multiplyInt512(Int512(0, 146097), g));
+        Int512 memory c = divideInt512(
+            multiplyInt512(subtractInt512(dg, Int512(0, 1)), Int512(0, 3)),
+            Int512(0, 4)
+        );
+        Int512 memory d = subtractInt512(dg, multiplyInt512(c, Int512(0, 4)));
+        Int512 memory m = divideInt512(
+            multiplyInt512(subtractInt512(d, Int512(0, 1)), Int512(0, 5)),
+            Int512(0, 153)
+        );
+        Int512 memory n = addInt512(
+            multiplyInt512(Int512(0, 100), g),
+            divideInt512(m, Int512(0, 16))
+        );
+        Int512 memory _year = subtractInt512(n, Int512(0, 4800));
+        Int512 memory _month = subtractInt512(
+            subtractInt512(m, Int512(0, 2)),
+            multiplyInt512(Int512(0, 12), divideInt512(m, Int512(0, 10)))
+        );
+        Int512 memory _day = subtractInt512(
+            subtractInt512(d, multiplyInt512(Int512(0, 153), m)),
+            Int512(0, 2)
+        );
+
+        year = uint256(_year.low);
+        month = uint256(_month.low);
+        day = uint256(_day.low);
+
+        uint256 secondsOfDay = wholeSeconds % 86400;
+        hour = secondsOfDay / 3600;
+        minute = (secondsOfDay % 3600) / 60;
+        second = secondsOfDay % 60;
     }
 
-    /**
-     * @notice Converts a timestamp to a date
-     * @param timestamp The timestamp to convert
-     * @return year The year
-     * @return month The month
-     * @return day The day
-     */
-    function _timestampToDate(uint256 timestamp) private pure returns (uint256 year, uint256 month, uint256 day) {
-        uint256 SECONDS_PER_DAY = 24 * 60 * 60;
-        uint256 OFFSET19700101 = 2440588;
+    // Helper functions for Int512 arithmetic
+    function addInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
+        uint256 lowSum = a.low + b.low;
+        int256 highSum = a.high + b.high + (lowSum < a.low ? 1 : 0);
+        return Int512(highSum, lowSum);
+    }
 
-        int256 j = int256(timestamp / SECONDS_PER_DAY) + int256(OFFSET19700101) + 68569 + 1;
-        int256 fourHundredYearCycles = (j * 4) / 146097;
-    
-        int256 _year = (((j - (146097 * fourHundredYearCycles + 3) / 4) + 1) * 4000) / 1461001;
-        int256 _month = ((j - (146097 * fourHundredYearCycles + 3) / 4 - (1461 * _year) / 4 + 31) * 80) / 2447;
-        int256 _day = j - (146097 * fourHundredYearCycles + 3) / 4 - (1461 * _year) / 4 + 31 - (2447 * _month) / 80;
+    function subtractInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
+        uint256 lowDiff = a.low - b.low;
+        int256 highDiff = a.high - b.high - (lowDiff > a.low ? 1 : 0);
+        return Int512(highDiff, lowDiff);
+    }
 
-        j = _month / 11;
-        _month = _month + 2 - 12 * j;
-        _year = 100 * (fourHundredYearCycles - 49) + _year + j;
+    function multiplyInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
+        uint256 low = a.low * b.low;
+        int256 high = int256(a.low) * b.high + a.high * int256(b.low) + int256(a.low >> 128) * int256(b.low >> 128);
+        return Int512(high, low);
+    }
 
-        // Convert results
-        year = uint256(_year);
-        month = uint256(_month);
-        day = uint256(_day);
+    function divideInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
+        require(b.high != 0 || b.low != 0, "Division by zero");
+        uint256 aAbs = a.high < 0 ? uint256(-a.high) : uint256(a.high);
+        uint256 bAbs = b.high < 0 ? uint256(-b.high) : uint256(b.high);
+        uint256 quot = (aAbs << 128 | a.low) / (bAbs << 128 | b.low);
+        bool negative = (a.high < 0) != (b.high < 0);
+        return Int512(negative ? -int256(quot >> 128) : int256(quot >> 128), quot & ((1 << 128) - 1));
     }
 
     /**
