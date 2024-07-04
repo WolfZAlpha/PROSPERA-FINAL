@@ -581,7 +581,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @notice Authorizes an upgrade to a new implementation
      * @dev This function is left empty but is required by the UUPSUpgradeable contract
      */
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /**
      * @notice Pauses all token transfers
@@ -630,6 +630,26 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     /**
+     * @notice Adds an address to the whitelist
+     * @param account The address to be added
+     */
+    function addToWhitelist(address account) external onlyOwner {
+        whitelist[account] = true;
+        emit AddedToWhitelist(account);
+        emit StateUpdated("whitelist", account, true);
+    }
+
+    /**
+     * @notice Removes an address from the whitelist
+     * @param account The address to be removed
+     */
+    function removeFromWhitelist(address account) external onlyOwner {
+        whitelist[account] = false;
+        emit RemovedFromWhitelist(account);
+        emit StateUpdated("whitelist", account, false);
+    }
+
+    /**
      * @notice Enables or disables staking
      * @param _enabled The new staking status (true to enable, false to disable)
      */
@@ -638,6 +658,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StakingEnabled(_enabled);
         emit StateUpdated("isStakingEnabled", address(0), _enabled);
     }
+
 
     /**
      * @notice Stakes a specified amount of tokens
@@ -768,26 +789,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         vestingSchedules[account].active = false;
         emit VestingReleased(account);
         emit StateUpdated("vesting", account, false);
-    }
-
-    /**
-     * @notice Adds an address to the whitelist
-     * @param account The address to be added
-     */
-    function addToWhitelist(address account) external onlyOwner {
-        whitelist[account] = true;
-        emit AddedToWhitelist(account);
-        emit StateUpdated("whitelist", account, true);
-    }
-
-    /**
-     * @notice Removes an address from the whitelist
-     * @param account The address to be removed
-     */
-    function removeFromWhitelist(address account) external onlyOwner {
-        whitelist[account] = false;
-        emit RemovedFromWhitelist(account);
-        emit StateUpdated("whitelist", account, false);
     }
 
     /**
@@ -942,7 +943,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         }
         return timestamp - leapSecondsCount;
     }
-    
+
     /**
      * @notice Checks if the current timestamp is the start of a new quarter
      * @param timestamp The timestamp to check
@@ -1169,7 +1170,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         while (remainingTokens > 0 && icoActive) {
             (uint256 tokensBought, uint256 tierCost) = buyFromCurrentTier(remainingTokens, remainingEth - totalCost);
-        
+    
             if (tokensBought == 0) break; // Not enough ETH to buy more tokens
 
             totalTokensBought += tokensBought;
@@ -1270,11 +1271,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function withdrawETH() external onlyOwner nonReentrant {
         address payable ownerPayable = payable(owner());
         uint256 balance = address(this).balance;
-        
+    
         if (balance == 0) revert NoEthToWithdraw();
-        
+    
         _safeTransferETH(ownerPayable, balance);
-        
+    
         emit EthWithdrawn(ownerPayable, balance);
     }
 
