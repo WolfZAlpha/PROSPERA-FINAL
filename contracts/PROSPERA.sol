@@ -1236,11 +1236,20 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         uint256 availableTokens = tierTokens - tierSold;
         tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
+    
+        // Check for potential overflow
+        if (tokensBought > type(uint256).max / tierPrice) {
+            revert("Overflow in tierCostPrecise calculation");
+        }
         uint256 tierCostPrecise = tokensBought * tierPrice;
         tierCost = tierCostPrecise / DECIMAL_PRECISION;
 
         if (tierCost > availableEth) {
             tokensBought = availableEth * DECIMAL_PRECISION / tierPrice;
+            // Check for potential overflow again
+            if (tokensBought > type(uint256).max / tierPrice) {
+                revert("Overflow in tierCostPrecise calculation");
+            }
             tierCostPrecise = tokensBought * tierPrice;
             tierCost = tierCostPrecise / DECIMAL_PRECISION;
         }
