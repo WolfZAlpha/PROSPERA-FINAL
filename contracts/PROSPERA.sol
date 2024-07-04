@@ -782,11 +782,19 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             calculatedReward = _calculateCase3Reward(_stakes[stakerAddress].amount, stakerTier, stakedDuration);
         }
 
+        // Apply burn rate to the reward if the stake is not locked up
+        if (!_stakes[stakerAddress].lockedUp) {
+            uint256 burnAmount = calculatedReward * BURN_RATE / 100;
+            calculatedReward -= burnAmount;
+            _burn(stakingWallet, burnAmount);
+        }
+
         _stakeRewards[stakerAddress] = calculatedReward;
 
         emit RewardUpdated(stakerAddress, calculatedReward);
         emit StateUpdated("reward", stakerAddress, true);
     }
+
 
     /**
      * @notice Calculates the reward for Case 0 (up to 1,500 wallets)
@@ -795,17 +803,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**12;  // 0.005%
-        else if (tier == 2) dailyYieldDecimal = 75 * 10**11; // 0.0075%
-        else if (tier == 3) dailyYieldDecimal = 15 * 10**12; // 0.015%
-        else if (tier == 4) dailyYieldDecimal = 175 * 10**11; // 0.0175%
-        else if (tier == 5) dailyYieldDecimal = 225 * 10**11; // 0.0225%
-        else if (tier == 6) dailyYieldDecimal = 275 * 10**11; // 0.0275%
-
+    function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[0].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
@@ -816,17 +815,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**11;  // 0.0005%
-        else if (tier == 2) dailyYieldDecimal = 75 * 10**10; // 0.00075%
-        else if (tier == 3) dailyYieldDecimal = 15 * 10**11; // 0.0015%
-        else if (tier == 4) dailyYieldDecimal = 175 * 10**10; // 0.00175%
-        else if (tier == 5) dailyYieldDecimal = 225 * 10**10; // 0.00225%
-        else if (tier == 6) dailyYieldDecimal = 275 * 10**10; // 0.00275%
-
+    function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[1].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
@@ -837,17 +827,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**11;       // 0.0005%
-        else if (tier == 1) dailyYieldDecimal = 25 * 10**10; // 0.00025%
-        else if (tier == 2) dailyYieldDecimal = 5 * 10**11;  // 0.0005%
-        else if (tier == 3) dailyYieldDecimal = 75 * 10**10; // 0.00075%
-        else if (tier == 4) dailyYieldDecimal = 1 * 10**12;  // 0.001%
-        else if (tier == 5) dailyYieldDecimal = 125 * 10**10; // 0.00125%
-        else if (tier == 6) dailyYieldDecimal = 15 * 10**11;  // 0.0015%
-
+    function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[2].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
@@ -858,17 +839,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param stakedDuration The duration the tokens have been staked
      * @return reward The calculated reward
      */
-    function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private pure returns (uint256 reward) {
-        uint256 dailyYieldDecimal;
-
-        if (tier == 0) dailyYieldDecimal = 5 * 10**9;       // 0.00005%
-        else if (tier == 1) dailyYieldDecimal = 5 * 10**9;  // 0.00005%
-        else if (tier == 2) dailyYieldDecimal = 1 * 10**10; // 0.0001%
-        else if (tier == 3) dailyYieldDecimal = 25 * 10**10; // 0.00025%
-        else if (tier == 4) dailyYieldDecimal = 5 * 10**10; // 0.0005%
-        else if (tier == 5) dailyYieldDecimal = 1 * 10**11; // 0.001%
-        else if (tier == 6) dailyYieldDecimal = 125 * 10**10; // 0.00125%
-
+    function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+        uint256 dailyYieldDecimal = cases[3].dailyYieldPercentage[tier];
         reward = (amount * dailyYieldDecimal * stakedDuration) / 10**18;
     }
 
