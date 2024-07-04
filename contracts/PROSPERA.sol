@@ -188,6 +188,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Tier limits
     uint256[TIER_COUNT] public tierLimits = [57143, 200000, 500000, 1500000, 10000000, 50000000];
 
+    /// @notice Decimal precision
+    uint256 private constant DECIMAL_PRECISION = 10**18;
+
     /// @notice Multiplier in basis points for each tier
     uint8[TIER_COUNT] public tierBonuses = [50, 50, 150, 175, 100, 125, 175];
 
@@ -1233,11 +1236,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         uint256 availableTokens = tierTokens - tierSold;
         tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
-        tierCost = (tokensBought * tierPrice) / 10**18;
+        uint256 tierCostPrecise = tokensBought * tierPrice;
+        tierCost = tierCostPrecise / DECIMAL_PRECISION;
 
         if (tierCost > availableEth) {
-            tokensBought = availableEth * 10**18 / tierPrice;
-            tierCost = (tokensBought * tierPrice) / 10**18;
+            tokensBought = availableEth * DECIMAL_PRECISION / tierPrice;
+            tierCostPrecise = tokensBought * tierPrice;
+            tierCost = tierCostPrecise / DECIMAL_PRECISION;
         }
 
         if (currentTier == IcoTier.Tier1) {
