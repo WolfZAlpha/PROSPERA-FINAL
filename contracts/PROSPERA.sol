@@ -165,7 +165,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     mapping(uint8 tier => address[] stakerAddresses) private stakersInTier;
 
     /// @notice Mapping of vesting schedules for addresses
-    mapping(address user => Vesting vestingInfo) public vestingSchedules;
+    mapping(address user => Vesting[] schedules) public vestingSchedules;
 
     /// @notice Mapping of whitelisted addresses
     mapping(address user => bool isWhitelisted) public whitelist;
@@ -221,6 +221,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 startTime;
         uint256 endTime;
         bool active;
+        uint8 vestingType; // 0 for marketing, 1 for team
     }
 
     /// @notice Struct for high-precision integer arithmetic
@@ -671,7 +672,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StateUpdated("isStakingEnabled", address(0), _enabled);
     }
 
-
     /**
      * @notice Stakes a specified amount of tokens
      * @param stakeAmount The number of tokens to stake
@@ -680,7 +680,22 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function stake(uint256 stakeAmount, bool isLockedUp, uint256 lockDuration) external nonReentrant whenNotPaused {
         if (_blacklist[_msgSender()]) revert BlacklistedAddress(_msgSender());
-        if (!isStakingEnabled && !vestingSchedules[_msgSender()].active && !whitelist[_msgSender()]) revert StakingNotEnabled();
+    
+        bool hasActiveVesting = false;
+        Vesting[] storage vestings = vestingSchedules[_msgSender()];
+        for (uint256 i = 0; i < vestings.length; i++) {
+            if (vestings[i].active) {
+                hasActiveVesting = true;
+                break;
+            }
+        }
+    
+        // Allow staking if: 
+        // 1. Staking is enabled for everyone, OR
+        // 2. The wallet has an active vesting schedule, OR
+        // 3. The wallet is whitelisted
+        if (!isStakingEnabled && !hasActiveVesting && !whitelist[_msgSender()]) revert StakingNotEnabled();
+    
         if (stakeAmount == 0) revert CannotStakeZeroTokens();
         if (isLockedUp && (lockDuration < MIN_STAKE_DURATION || lockDuration > MAX_STAKE_DURATION)) revert InvalidLockupDuration();
 
@@ -780,14 +795,32 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /**
      * @notice Adds an address to the vesting schedule
      * @param account The address to be added
+     * @param vestingType The type of vesting (0 for marketing, 1 for team)
      */
-    function addToVesting(address account) external onlyOwner {
+    function addToVesting(address account, uint8 vestingType) external onlyOwner {
         if (account == address(0)) revert InvalidAddress();
+    
         uint256 startTime = block.timestamp;
-        uint256 endTime = startTime + 120 days; // Fixed duration of 4 months
-        vestingSchedules[account] = Vesting(startTime, endTime, true);
+        uint256 endTime;
+        bool isActive = true; // Explicitly define the boolean value
+
+        if (vestingType == 0) {
+            endTime = startTime + 120 days; // 4 months for marketing
+        } else {
+            endTime = startTime + 90 days; // 3 months for team
+        }
+
+        Vesting memory newVesting = Vesting({
+            startTime: startTime,
+            endTime: endTime,
+            active: isActive,
+            vestingType: vestingType
+        });
+
+        vestingSchedules[account].push(newVesting);
+    
         emit VestingAdded(account, startTime, endTime);
-        emit StateUpdated("vesting", account, true);
+        emit StateUpdated("vesting", account, isActive);
     }
 
     /**
@@ -795,12 +828,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param account The address to release tokens for
      */
     function releaseVestedTokens(address account) external {
-        Vesting memory vesting = vestingSchedules[account];
-        if (!vesting.active) revert VestingNotActive();
-        if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
-        vestingSchedules[account].active = false;
-        emit VestingReleased(account);
-        emit StateUpdated("vesting", account, false);
+        Vesting[] storage vestings = vestingSchedules[account];
+        uint256 vestingsLength = vestings.length; // Store the length in a local variable
+        for (uint256 i; i < vestingsLength; ++i) {
+            Vesting storage vesting = vestings[i];
+            if (!vesting.active) continue;
+            if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
+            vesting.active = false;
+            emit VestingReleased(account);
+            emit StateUpdated("vesting", account, false);
+        }
     }
 
     /**
@@ -1148,7 +1185,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function handleNormalBuySell(address senderAddress, address recipientAddress, uint256 amount) private {
         uint256 ethTaxAmount = amount * TAX_RATE / 100;
         uint256 burnAmount = amount * BURN_RATE / 100;
-        uint256 transferAmount = amount - burnAmount - ethTaxAmount;
+        uint256 transferAmount = amount - burnAmount;
 
         _burn(senderAddress, burnAmount);
         _transfer(senderAddress, recipientAddress, transferAmount);
@@ -1157,6 +1194,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _safeTransferETH(taxWallet, ethTaxAmount);
 
         emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, ethTaxAmount);
+    }
+
+    /**
+     * @notice Determines if a transfer is a buy/sell transaction
+     * @param from The address sending the tokens
+     * @param to The address receiving the tokens
+     * @return True if it is a buy/sell transaction, false otherwise
+     */
+    function isBuySell(address from, address to) private view returns (bool) {
+        return from == taxWallet || to == taxWallet || from == icoWallet || to == icoWallet;
     }
 
     /// @notice Purchases tokens during the ICO
@@ -1382,15 +1429,26 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     /**
-     * @notice Transfers tokens with vesting check
+     * @notice Transfers tokens with vesting check and normal buy/sell handling
      * @param from The address sending the tokens
      * @param to The address receiving the tokens
      * @param amount The amount of tokens being transferred
      */
     function _transfer(address from, address to, uint256 amount) internal override {
-        if (vestingSchedules[from].active && block.timestamp < vestingSchedules[from].endTime) {
-            revert VestedTokensCannotBeTransferred();
+        Vesting[] storage vestings = vestingSchedules[from];
+        uint256 vestingsLength = vestings.length;
+        for (uint256 i; i < vestingsLength; ++i) {
+            if (vestings[i].active && block.timestamp < vestings[i].endTime) {
+                revert VestedTokensCannotBeTransferred();
+            }
         }
-        handleNormalBuySell(from, to, amount);
+
+        // Handle normal buy/sell transactions
+        if (isBuySell(from, to)) {
+            handleNormalBuySell(from, to, amount);
+        } else {
+            // Handle simple transfers without tax and burn
+            super._transfer(from, to, amount);
+        }
     }
 }
