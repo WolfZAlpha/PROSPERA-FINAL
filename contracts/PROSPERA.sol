@@ -720,20 +720,32 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /**
      * @notice Adds an address to the vesting schedule
      * @param account The address to be added
+     * @param vestingType The type of vesting (0 for marketing, 1 for team)
      */
     function addToVesting(address account, uint8 vestingType) external onlyOwner {
         if (account == address(0)) revert InvalidAddress();
+        
         uint256 startTime = block.timestamp;
         uint256 endTime;
+        bool isActive = true; // Explicitly define the boolean value
+
         if (vestingType == 0) {
             endTime = startTime + 120 days; // 4 months for marketing
         } else {
             endTime = startTime + 90 days; // 3 months for team
         }
-        vestingSchedules[account].push(Vesting(startTime, endTime, true, vestingType));
-        // The boolean 'true' indicates that the vesting schedule is active upon creation
+
+        Vesting memory newVesting = Vesting({
+            startTime: startTime,
+            endTime: endTime,
+            active: isActive,
+            vestingType: vestingType
+        });
+
+        vestingSchedules[account].push(newVesting);
+        
         emit VestingAdded(account, startTime, endTime);
-        emit StateUpdated("vesting", account, true);
+        emit StateUpdated("vesting", account, isActive);
     }
 
     /**
@@ -742,8 +754,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function releaseVestedTokens(address account) external {
         Vesting[] storage vestings = vestingSchedules[account];
-        uint256 vestingLength = vestings.length;
-        for (uint256 i = 0; i < vestingLength; ++i) {
+        for (uint256 i = 0; i < vestings.length; ++i) {
             Vesting storage vesting = vestings[i];
             if (!vesting.active) continue;
             if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
@@ -765,7 +776,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @notice Removes an address from the whitelist
-     * @param account The address to be removed from the whitelist
+     * @param account The address to be removed
      */
     function removeFromWhitelist(address account) external onlyOwner {
         whitelist[account] = false;
@@ -1240,8 +1251,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _transfer(address from, address to, uint256 amount) internal override {
         Vesting[] storage vestings = vestingSchedules[from];
-        uint256 vestingLength = vestings.length;
-        for (uint256 i = 0; i < vestingLength; ++i) {
+        uint256 vestingsLength = vestings.length;
+        for (uint256 i = 0; i < vestingsLength; ++i) {
             if (vestings[i].active && block.timestamp < vestings[i].endTime) {
                 revert VestedTokensCannotBeTransferred();
             }
