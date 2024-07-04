@@ -926,17 +926,23 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @return The adjusted timestamp
      */
     function adjustForLeapSeconds(uint256 timestamp) private view returns (uint256) {
-        uint256 leapSecondsCount = 0;
-        for (uint256 i = 0; i < leapSeconds.length; i++) {
+        uint256 leapSecondsCount;
+        uint256 leapSecondsLength = leapSeconds.length;
+        for (uint256 i; i < leapSecondsLength;) {
             if (timestamp > leapSeconds[i]) {
-                leapSecondsCount++;
+                unchecked {
+                    ++leapSecondsCount;
+                }
             } else {
                 break;
+            }
+            unchecked {
+                ++i;
             }
         }
         return timestamp - leapSecondsCount;
     }
-
+    
     /**
      * @notice Checks if the current timestamp is the start of a new quarter
      * @param timestamp The timestamp to check
