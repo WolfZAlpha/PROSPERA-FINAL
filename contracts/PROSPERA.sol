@@ -1271,9 +1271,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @notice Determines if a transfer is a buy/sell transaction
      * @param from The address sending the tokens
      * @param to The address receiving the tokens
-     * @return True if it is a buy/sell transaction, false otherwise
+     * @return isBuySell True if it is a buy/sell transaction, false otherwise
      */
-    function isBuySell(address from, address to) private view returns (bool) {
+    function isBuySell(address from, address to) private view returns (bool isBuySell) {
         // Define conditions to determine if the transfer is a buy/sell transaction
         // This can be based on whether 'from' or 'to' is a known exchange or liquidity pool
         // For simplicity, this example assumes that buy/sell transactions are transfers involving the taxWallet or icoWallet
