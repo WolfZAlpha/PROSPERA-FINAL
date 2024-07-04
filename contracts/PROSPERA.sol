@@ -475,6 +475,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Error for division by zero
     error DivisionByZero();
 
+    /// @notice Error for overflow in tier cost calculation
+    error OverflowInTierCostCalculation();
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -1239,16 +1242,19 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     
         // Check for potential overflow
         if (tokensBought > type(uint256).max / tierPrice) {
-            revert("Overflow in tierCostPrecise calculation");
+            revert OverflowInTierCostCalculation();
         }
         uint256 tierCostPrecise = tokensBought * tierPrice;
         tierCost = tierCostPrecise / DECIMAL_PRECISION;
 
         if (tierCost > availableEth) {
-            tokensBought = availableEth * DECIMAL_PRECISION / tierPrice;
-            // Check for potential overflow again
+            // Recalculate tokensBought based on availableEth
+            uint256 maxTokens = availableEth * DECIMAL_PRECISION / tierPrice;
+            tokensBought = (maxTokens < tokensBought) ? maxTokens : tokensBought;
+
+            // Recalculate tierCost
             if (tokensBought > type(uint256).max / tierPrice) {
-                revert("Overflow in tierCostPrecise calculation");
+                revert OverflowInTierCostCalculation();
             }
             tierCostPrecise = tokensBought * tierPrice;
             tierCost = tierCostPrecise / DECIMAL_PRECISION;
