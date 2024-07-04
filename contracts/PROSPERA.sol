@@ -512,33 +512,33 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit WalletAddressSet("Marketing Wallet", _marketingWallet);
         emit WalletAddressSet("Team Wallet", _teamWallet);
         emit WalletAddressSet("Dev Wallet", _devWallet);
-
+        
         //initialize the cases
         cases[0] = Case({
             maxWallets: 1500,
             maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.005 * 10**18), uint256(0.0075 * 10**18), uint256(0.015 * 10**18), uint256(0.0175 * 10**18), uint256(0.0225 * 10**18), uint256(0.0275 * 10**18)]
+            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
         cases[1] = Case({
             maxWallets: 3000,
             maxWalletsPerTier: [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]
+            dailyYieldPercentage: [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
         cases[2] = Case({
             maxWallets: 10000,
             maxWalletsPerTier: [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.00025 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.001 * 10**18), uint256(0.00125 * 10**18), uint256(0.0015 * 10**18)]
+            dailyYieldPercentage: [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
         cases[3] = Case({
             maxWallets: 20000,
             maxWalletsPerTier: [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100],
-            dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.00005 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.0005 * 10**18), uint256(0.001 * 10**18), uint256(0.00125 * 10**18)]
+            dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]
         });
         emit StateUpdated("Case", address(0), true);
 
