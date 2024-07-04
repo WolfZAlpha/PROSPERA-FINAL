@@ -222,8 +222,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Struct for high-precision integer arithmetic
     struct Int512 {
-        int256 high;
-        uint256 low;
+    int256 high;
+    int256 low;
     }
 
     /// @notice Leap second table (Unix timestamps of leap seconds)
@@ -921,6 +921,33 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     /**
+     * @notice Adjusts the timestamp for leap seconds
+     * @param timestamp The timestamp to adjust
+     * @return The adjusted timestamp
+     */
+    function adjustForLeapSeconds(uint256 timestamp) private view returns (uint256) {
+        uint256 leapSecondsCount = 0;
+        for (uint256 i = 0; i < leapSeconds.length; i++) {
+            if (timestamp > leapSeconds[i]) {
+                leapSecondsCount++;
+            } else {
+                break;
+            }
+        }
+        return timestamp - leapSecondsCount;
+    }
+
+    /**
+     * @notice Checks if the current timestamp is the start of a new quarter
+     * @param timestamp The timestamp to check
+     * @return isQuarterStart True if it is the start of a new quarter, false otherwise
+     */
+    function _isQuarterStart(uint256 timestamp) private view returns (bool) {
+        (uint256 year, uint256 month, uint256 day, , , ,) = _timestampToDate(timestamp);
+        return (month == 1 || month == 4 || month == 7 || month == 10) && day == 1;
+    }
+
+    /**
      * @notice Converts a timestamp to a date with maximum precision
      * @param timestamp The timestamp to convert (in seconds since Unix epoch)
      * @return year The year
@@ -942,10 +969,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         Int512 memory julianDay = addInt512(
             divideInt512(
-                multiplyInt512(Int512(0, wholeSeconds), Int512(0, 86400)),
-                Int512(0, 86400)
+                multiplyInt512(Int512(0, int256(wholeSeconds)), Int512(0, int256(86400))),
+                Int512(0, int256(86400))
             ),
-            Int512(0, 2440588)
+            Int512(0, int256(2440588))
         );
 
         Int512 memory j = addInt512(julianDay, Int512(0, 32044));
@@ -983,33 +1010,33 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         minute = (secondsOfDay % 3600) / 60;
         second = secondsOfDay % 60;
     }
-
+    
     // Helper functions for Int512 arithmetic
     function addInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
-        uint256 lowSum = a.low + b.low;
-        int256 highSum = a.high + b.high + (lowSum < a.low ? 1 : 0);
+        int256 lowSum = a.low + b.low;
+        int256 highSum = a.high + b.high + (lowSum < a.low ? int256(1) : int256(0));
         return Int512(highSum, lowSum);
     }
 
     function subtractInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
-        uint256 lowDiff = a.low - b.low;
-        int256 highDiff = a.high - b.high - (lowDiff > a.low ? 1 : 0);
+        int256 lowDiff = a.low - b.low;
+        int256 highDiff = a.high - b.high - (lowDiff > a.low ? int256(-1) : int256(0));
         return Int512(highDiff, lowDiff);
     }
 
     function multiplyInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
-        uint256 low = a.low * b.low;
-        int256 high = int256(a.low) * b.high + a.high * int256(b.low) + int256(a.low >> 128) * int256(b.low >> 128);
+        int256 low = a.low * b.low;
+        int256 high = a.high * b.low + a.low * b.high + ((a.low >> 128) * (b.low >> 128));
         return Int512(high, low);
     }
 
     function divideInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
         require(b.high != 0 || b.low != 0, "Division by zero");
-        uint256 aAbs = a.high < 0 ? uint256(-a.high) : uint256(a.high);
-        uint256 bAbs = b.high < 0 ? uint256(-b.high) : uint256(b.high);
-        uint256 quot = (aAbs << 128 | a.low) / (bAbs << 128 | b.low);
+        int256 aAbs = a.high < 0 ? -a.high : a.high;
+        int256 bAbs = b.high < 0 ? -b.high : b.high;
+        int256 quot = (aAbs << 128 | (a.low < 0 ? -a.low : a.low)) / (bAbs << 128 | (b.low < 0 ? -b.low : b.low));
         bool negative = (a.high < 0) != (b.high < 0);
-        return Int512(negative ? -int256(quot >> 128) : int256(quot >> 128), quot & ((1 << 128) - 1));
+        return Int512(negative ? -int256(uint256(quot) >> 128) : int256(uint256(quot) >> 128), negative ? -int256(uint256(quot) & ((1 << 128) - 1)) : int256(uint256(quot) & ((1 << 128) - 1)));
     }
 
     /**
