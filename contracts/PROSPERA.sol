@@ -1193,11 +1193,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         uint256 availableTokens = tierTokens - tierSold;
         tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
-        tierCost = tokensBought * tierPrice / 10**18;
+        tierCost = (tokensBought * tierPrice) / 10**18;
 
         if (tierCost > availableEth) {
             tokensBought = availableEth * 10**18 / tierPrice;
-            tierCost = tokensBought * tierPrice / 10**18;
+            tierCost = (tokensBought * tierPrice) / 10**18;
         }
 
         if (currentTier == IcoTier.Tier1) {
