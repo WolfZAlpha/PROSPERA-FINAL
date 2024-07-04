@@ -342,6 +342,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param user The address of the user
     event RemovedFromWhitelist(address indexed user);
 
+    /// @notice Emitted when ETH is transferred during the ICO process
+    /// @param recipient The address receiving the ETH
+    /// @param amount The amount of ETH transferred
+    event EthTransferred(address indexed recipient, uint256 amount);
+
     /// @notice Emitted when ETH is withdrawn from the contract
     /// @param recipient The address receiving the ETH
     /// @param amount The amount of ETH withdrawn
@@ -395,6 +400,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Error for incorrect ETH amount sent
     error IncorrectETHAmountSent();
+
+    /// @notice Error for when there are insufficient funds to make a purchase
+    error InsufficientFundsForPurchase();
 
     /// @notice Error for ETH transfer failed
     error EthTransferFailed();
@@ -1034,106 +1042,124 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, ethTaxAmount);
     }
 
-    /**
-     * @notice Purchases tokens during the ICO
-     * @param tokenAmount The number of tokens to purchase
-     */
+    /// @notice Purchases tokens during the ICO
+    /// @dev This function handles the token purchase process, including tax calculation and dynamic tier transitions
+    /// @param tokenAmount The number of tokens to purchase
     function buyTokens(uint256 tokenAmount) external payable nonReentrant whenNotPaused {
         if (_blacklist[_msgSender()]) revert BlacklistedAddress(_msgSender());
         if (!icoActive) revert IcoNotActive();
-        uint256 remainingTokens = tokenAmount;
-        uint256 cost;
+    
         uint256 ethValue = msg.value;
 
         // Check minimum and maximum buy limit
         if (ethValue < MIN_ICO_BUY) revert BelowMinIcoBuyLimit();
         if (_icoBuys[_msgSender()] + ethValue > MAX_ICO_BUY) revert ExceedsMaxIcoBuyLimit();
 
-        // Calculate cost and update state before external calls
-        while (remainingTokens > 0) {
-            if (currentTier == IcoTier.Tier1) {
-                uint256 availableTokens = TIER1_TOKENS - tier1Sold;
-                uint256 tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
-                uint256 tierCost = tokensToBuy * TIER1_PRICE / 10**18;
+        // Calculate the ICO tax
+        uint256 totalTaxAmount = ethValue * ICO_TAX_RATE / 100;
+        uint256 remainingEth = ethValue - totalTaxAmount;
 
-                cost += tierCost;
-                tier1Sold += tokensToBuy;
-                remainingTokens -= tokensToBuy;
+        uint256 remainingTokens = tokenAmount;
+        uint256 totalCost;
+        uint256 totalTokensBought;
 
-                emit TierSoldUpdated(IcoTier.Tier1, tier1Sold);
-                emit StateUpdated("Tier1TokensSold", _msgSender(), true);
-                if (tier1Sold >= TIER1_TOKENS) {
-                    currentTier = IcoTier.Tier2;
-                    emit IcoTierChanged(IcoTier.Tier2);
-                    emit CurrentTierUpdated(IcoTier.Tier2);
-                    emit StateUpdated("CurrentTier", _msgSender(), true);
-                }
-            } else if (currentTier == IcoTier.Tier2) {
-                uint256 availableTokens = TIER2_TOKENS - tier2Sold;
-                uint256 tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
-                uint256 tierCost = tokensToBuy * TIER2_PRICE / 10**18;
+        while (remainingTokens > 0 && icoActive) {
+            (uint256 tokensBought, uint256 tierCost) = buyFromCurrentTier(remainingTokens, remainingEth - totalCost);
+        
+            if (tokensBought == 0) break; // Not enough ETH to buy more tokens
 
-                cost += tierCost;
-                tier2Sold += tokensToBuy;
-                remainingTokens -= tokensToBuy;
-
-                emit TierSoldUpdated(IcoTier.Tier2, tier2Sold);
-                emit StateUpdated("Tier2TokensSold", _msgSender(), true);
-                if (tier2Sold >= TIER2_TOKENS) {
-                    currentTier = IcoTier.Tier3;
-                    emit IcoTierChanged(IcoTier.Tier3);
-                    emit CurrentTierUpdated(IcoTier.Tier3);
-                    emit StateUpdated("CurrentTier", _msgSender(), true);
-                }
-            } else if (currentTier == IcoTier.Tier3) {
-                uint256 availableTokens = TIER3_TOKENS - tier3Sold;
-                uint256 tokensToBuy = remainingTokens > availableTokens ? availableTokens : remainingTokens;
-                uint256 tierCost = tokensToBuy * TIER3_PRICE / 10**18;
-
-                cost += tierCost;
-                tier3Sold += tokensToBuy;
-                remainingTokens -= tokensToBuy;
-
-                emit TierSoldUpdated(IcoTier.Tier3, tier3Sold);
-                emit StateUpdated("Tier3TokensSold", _msgSender(), true);
-                if (tier3Sold >= TIER3_TOKENS) {
-                    icoActive = false;
-                    emit IcoEnded();
-                    emit StateUpdated("icoActive", address(0), false);
-                }
-            } else {
-                revert InvalidIcoTier();
-            }
+            totalTokensBought += tokensBought;
+            totalCost += tierCost;
+            remainingTokens -= tokensBought;
         }
 
-        uint256 totalTaxAmount = cost * ICO_TAX_RATE / 100;
-        uint256 remainingCost = cost - totalTaxAmount;
-
-        if (msg.value != cost) revert IncorrectETHAmountSent();
+        if (totalTokensBought == 0) revert InsufficientFundsForPurchase();
+        if (remainingEth < totalCost) revert IncorrectETHAmountSent();
 
         // Update state
-        _icoBuys[_msgSender()] += cost;
-        _transfer(prosicoWallet, _msgSender(), tokenAmount);
-
-        // Emit events
+        _icoBuys[_msgSender()] += totalCost;
         emit IcoBuyUpdated(_msgSender(), _icoBuys[_msgSender()]);
-        emit TokensPurchased(_msgSender(), tokenAmount, cost);
+
+        _transfer(prosicoWallet, _msgSender(), totalTokensBought);
+        emit TokensPurchased(_msgSender(), totalTokensBought, totalCost);
         emit StateUpdated("IcoPurchase", _msgSender(), true);
 
         // Perform external interactions last
-        _safeTransferETH(icoWallet, remainingCost);
+        _safeTransferETH(icoWallet, totalCost);
         _safeTransferETH(taxWallet, totalTaxAmount);
+
+        // Emit event for ETH transfers
+        emit EthTransferred(icoWallet, totalCost);
+        emit EthTransferred(taxWallet, totalTaxAmount);
     }
 
-    /**
-     * @notice Ends the ICO
-     */
-    function endIco() external onlyOwner {
+    /// @notice Buys tokens from the current ICO tier
+    /// @dev This function handles purchasing from a single tier and transitions to the next if necessary
+    /// @param tokensToBuy The number of tokens attempting to buy
+    /// @param availableEth The amount of ETH available for the purchase
+    /// @return tokensBought The number of tokens successfully purchased
+    /// @return tierCost The cost of the purchased tokens
+    function buyFromCurrentTier(uint256 tokensToBuy, uint256 availableEth) private returns (uint256 tokensBought, uint256 tierCost) {
+        uint256 tierTokens;
+        uint256 tierSold;
+        uint256 tierPrice;
+
+        if (currentTier == IcoTier.Tier1) {
+            tierTokens = TIER1_TOKENS;
+            tierSold = tier1Sold;
+            tierPrice = TIER1_PRICE;
+        } else if (currentTier == IcoTier.Tier2) {
+            tierTokens = TIER2_TOKENS;
+            tierSold = tier2Sold;
+            tierPrice = TIER2_PRICE;
+        } else if (currentTier == IcoTier.Tier3) {
+            tierTokens = TIER3_TOKENS;
+            tierSold = tier3Sold;
+            tierPrice = TIER3_PRICE;
+        } else {
+            revert InvalidIcoTier();
+        }
+
+        uint256 availableTokens = tierTokens - tierSold;
+        tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
+        tierCost = tokensBought * tierPrice / 10**18;
+
+        if (tierCost > availableEth) {
+            tokensBought = availableEth * 10**18 / tierPrice;
+            tierCost = tokensBought * tierPrice / 10**18;
+        }
+
+        if (currentTier == IcoTier.Tier1) {
+            tier1Sold += tokensBought;
+            emit TierSoldUpdated(IcoTier.Tier1, tier1Sold);
+            if (tier1Sold >= TIER1_TOKENS) updateIcoTier(IcoTier.Tier2);
+        } else if (currentTier == IcoTier.Tier2) {
+            tier2Sold += tokensBought;
+            emit TierSoldUpdated(IcoTier.Tier2, tier2Sold);
+            if (tier2Sold >= TIER2_TOKENS) updateIcoTier(IcoTier.Tier3);
+        } else if (currentTier == IcoTier.Tier3) {
+            tier3Sold += tokensBought;
+            emit TierSoldUpdated(IcoTier.Tier3, tier3Sold);
+            if (tier3Sold >= TIER3_TOKENS) endIco();
+        }
+    }
+
+    /// @notice Updates the ICO tier
+    /// @param newTier The new ICO tier to set
+    function updateIcoTier(IcoTier newTier) private {
+        currentTier = newTier;
+        emit IcoTierChanged(newTier);
+        emit CurrentTierUpdated(newTier);
+        emit StateUpdated("CurrentTier", address(0), true);
+    }
+
+    /// @notice Ends the ICO
+    function endIco() private {
         icoActive = false;
         emit IcoEnded();
-        emit StateUpdated("icoActive", _msgSender(), false);
+        emit StateUpdated("icoActive", address(0), false);
     }
-
+    
     /**
      * @notice Withdraws all ETH from the contract to the owner's address
      */
