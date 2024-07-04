@@ -755,7 +755,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function releaseVestedTokens(address account) external {
         Vesting[] storage vestings = vestingSchedules[account];
         uint256 vestingsLength = vestings.length; // Store the length in a local variable
-        for (uint256 i = 0; i < vestingsLength; ++i) {
+        for (uint256 i; i < vestingsLength; ++i) {
             Vesting storage vesting = vestings[i];
             if (!vesting.active) continue;
             if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
@@ -1253,7 +1253,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function _transfer(address from, address to, uint256 amount) internal override {
         Vesting[] storage vestings = vestingSchedules[from];
         uint256 vestingsLength = vestings.length;
-        for (uint256 i = 0; i < vestingsLength; ++i) {
+        for (uint256 i; i < vestingsLength; ++i) {
             if (vestings[i].active && block.timestamp < vestings[i].endTime) {
                 revert VestedTokensCannotBeTransferred();
             }
