@@ -427,6 +427,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Error for ETH transfer failed
     error EthTransferFailed();
 
+    /// @notice Error for Invalid recipient address
+    error InvalidRecipientAddress();
+
     /// @notice Error for insufficient balance in the contract
     error InsufficientBalance();
 
@@ -465,6 +468,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Error for attempting to transfer vested tokens
     error VestedTokensCannotBeTransferred();
+
+    /// @notice Error for division by zero
+    error DivisionByZero();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -581,7 +587,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @notice Authorizes an upgrade to a new implementation
      * @dev This function is left empty but is required by the UUPSUpgradeable contract
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /**
      * @notice Pauses all token transfers
@@ -1038,7 +1044,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     function divideInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
-        require(b.high != 0 || b.low != 0, "Division by zero");
+        if (b.high == 0 && b.low == 0) revert DivisionByZero();
         int256 aAbs = a.high < 0 ? -a.high : a.high;
         int256 bAbs = b.high < 0 ? -b.high : b.high;
         int256 quot = (aAbs << 128 | (a.low < 0 ? -a.low : a.low)) / (bAbs << 128 | (b.low < 0 ? -b.low : b.low));
@@ -1308,12 +1314,19 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param amount The amount of ETH to transfer
      */
     function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant {
-        // Check
+        // Checks
         if (address(this).balance < amount) revert InsufficientBalance();
+        if (recipientAddress == address(0)) revert InvalidRecipientAddress();
 
-        // Interactions
+        // Effects (update state variables before external calls)
+        // but in this case we don't have any
+
+        // Interactions (perform the external call last)
         (bool success, ) = recipientAddress.call{value: amount}("");
         if (!success) revert EthTransferFailed();
+
+        // Event Emission after the transfer
+        emit EthTransferred(recipientAddress, amount);
     }
 
     /**
