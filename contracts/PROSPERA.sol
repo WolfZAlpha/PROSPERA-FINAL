@@ -757,7 +757,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StateUpdated("vesting", account, true);
     }
 
-
     /**
      * @notice Releases vested tokens for an address
      * @param account The address to release tokens for
@@ -822,7 +821,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit RewardUpdated(stakerAddress, calculatedReward);
         emit StateUpdated("reward", stakerAddress, true);
     }
-
 
     /**
      * @notice Calculates the reward for Case 0 (up to 1,500 wallets)
@@ -921,7 +919,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit CurrentCaseUpdated(currentCase);
         emit StateUpdated("currentCase", address(0), true);
     }
-    
+
     /**
      * @notice Converts a timestamp to a date with maximum precision
      * @param timestamp The timestamp to convert (in seconds since Unix epoch)
@@ -1275,11 +1273,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param recipientAddress The address to receive the ETH
      * @param amount The amount of ETH to transfer
      */
-    function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant{
+    function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant {
+        // Check
         if (address(this).balance < amount) revert InsufficientBalance();
-    
-        // Effects
-        // (No state changes in this function, but if there were, they would go here)
 
         // Interactions
         (bool success, ) = recipientAddress.call{value: amount}("");
