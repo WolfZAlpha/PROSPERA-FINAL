@@ -911,6 +911,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         (uint256 year, uint256 month, ) = _timestampToDate(timestamp);
         isQuarterStart = (month == 1 || month == 4 || month == 7 || month == 10);
     }
+
     /**
      * @notice Converts a timestamp to a date
      * @param timestamp The timestamp to convert
@@ -922,24 +923,23 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 SECONDS_PER_DAY = 24 * 60 * 60;
         uint256 OFFSET19700101 = 2440588;
 
-        //conversion
-        int256 __days = int256(timestamp / SECONDS_PER_DAY) + int256(OFFSET19700101);
+        int256 julianDays = int256(timestamp / SECONDS_PER_DAY) + int256(OFFSET19700101);
 
-        // I.calc convert Julian days to Gregorian date
-        int256 L = __days + 68569 + 1;  //states the adjustment for the algo
-        int256 N = (L * 4) / 146097; // #of400-yrCycles
-        L = L - (146097 * N + 3) / 4; //Adjust L, remove cycle
-        int256 _year = ((L + 1) * 4000) / 1461001; // year is sorted
-        L = L - (1461 * _year) / 4 + 31; // adjust the l variable for the month calculation
-        int256 _month = (L * 80) / 2447; // determines the month
-        L = L - (2447 * _month) / 80; // Remaining Days for day calculation
-        int256 _day = L; // Calculate day
+        // Convert Julian days to Gregorian date
+        int256 j = julianDays + 68569 + 1;
+        int256 fourHundredYearCycles = (j * 4) / 146097;
+    
+        j = j - (146097 * fourHundredYearCycles + 3) / 4;
+        int256 _year = ((j + 1) * 4000) / 1461001;
+        j = j - (1461 * _year) / 4 + 31;
+        int256 _month = (j * 80) / 2447;
+        int256 _day = j - (2447 * _month) / 80;
 
-        int256 M = _month / 11;
-        _month = _month + 2 - 12 * M;
-        _year = 100 * (N - 49) + _year + M;
+        j = _month / 11;
+        _month = _month + 2 - 12 * j;
+        _year = 100 * (fourHundredYearCycles - 49) + _year + j;
 
-        //convert results 
+        // Convert results
         year = uint256(_year);
         month = uint256(_month);
         day = uint256(_day);
