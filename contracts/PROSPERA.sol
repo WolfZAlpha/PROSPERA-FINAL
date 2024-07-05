@@ -1188,14 +1188,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function handleNormalBuySell(address senderAddress, address recipientAddress, uint256 amount) private {
         uint256 ethTaxAmount = amount * TAX_RATE / 100;
         uint256 burnAmount = amount * BURN_RATE / 100;
-        uint256 transferAmount = amount - burnAmount;
+        uint256 transferAmount = amount - burnAmount - ethTaxAmount;
 
         _burn(senderAddress, burnAmount);
-        _transfer(senderAddress, recipientAddress, transferAmount);
+        super._transfer(senderAddress, recipientAddress, transferAmount);
 
         // State changes before external calls
         _safeTransferETH(taxWallet, ethTaxAmount);
 
+        emit Transfer(senderAddress, recipientAddress, transferAmount);
+        emit Transfer(senderAddress, address(0), burnAmount);  // Burn event
         emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, ethTaxAmount);
     }
 
@@ -1453,5 +1455,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             // Handle simple transfers without tax and burn
             super._transfer(from, to, amount);
         }
+
+        // Ensure the Transfer event is always emitted
+        emit Transfer(from, to, amount);
     }
 }
