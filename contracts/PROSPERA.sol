@@ -926,9 +926,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /**
      * @notice Adjusts the timestamp for leap seconds
      * @param timestamp The timestamp to adjust
-     * @return The adjusted timestamp
+     * @return adjustedTimestamp The adjusted timestamp
      */
-    function adjustForLeapSeconds(uint256 timestamp) private view returns (uint256) {
+    function adjustForLeapSeconds(uint256 timestamp) private view returns (uint256 adjustedTimestamp) {
         uint256 leapSecondsCount;
         uint256 leapSecondsLength = leapSeconds.length;
         for (uint256 i; i < leapSecondsLength;) {
@@ -942,8 +942,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             unchecked {
                 ++i;
             }
-        }
-        return timestamp - leapSecondsCount;
+        }   
+        adjustedTimestamp = timestamp - leapSecondsCount;
     }
     
     /**
@@ -1309,10 +1309,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 holdersLength = holders.length;
         for (uint256 i; i < holdersLength; ++i) {
             if (holders[i] == accountAddress) {
-                return true;
+                isHolder = true;
+                return isHolder;
             }
         }
-        return false;
+        isHolder = false;
+        return isHolder;
     }
 
     /**
