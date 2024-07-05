@@ -264,6 +264,48 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param total The total amount of tokens staked by the user
     event Staked(address indexed user, uint256 amount, uint256 total);
 
+    /// @notice Emitted when a stake is updated
+    /// @param user The address of the user
+    /// @param amount The amount of tokens staked
+    /// @param tier The tier of the stake
+    /// @param isLockedUp Whether the stake is locked up
+    /// @param lockDuration The duration of the lock-up period
+    event StakeUpdated(address indexed user, uint256 amount, uint8 tier, bool isLockedUp, uint256 lockDuration);
+
+    /// @notice Emitted when a user's stake amount is updated
+    /// @param user The address of the user whose stake was updated
+    /// @param newAmount The new staked amount for the user
+    event StakeAmountUpdated(address indexed user, uint256 newAmount);
+
+    /// @notice Emitted when a user's stake is completely removed
+    /// @param user The address of the user whose stake was removed
+    event StakeRemoved(address indexed user);
+
+    /// @notice Emitted when the number of active stakers in a tier changes
+    /// @param tier The tier number that was updated
+    /// @param newCount The new count of active stakers in the tier
+    event ActiveStakersUpdated(uint8 indexed tier, uint256 newCount);
+
+    /// @notice Emitted when the total number of stakers is updated
+    /// @param totalStakers The new total number of stakers across all tiers
+    event TotalStakersUpdated(uint256 totalStakers);
+
+    /// @notice Emitted when a staker is removed from a specific tier
+    /// @param tier The tier number from which the staker was removed
+    /// @param staker The address of the staker who was removed
+    event StakerRemovedFromTier(uint8 indexed tier, address indexed staker);
+
+    /// @notice Emitted when a stake's lock status or duration is updated
+    /// @param user The address of the user whose stake was updated
+    /// @param isLocked Whether the stake is now locked
+    /// @param lockDuration The new lock duration
+    event StakeLockUpdated(address indexed user, bool isLocked, uint256 lockDuration);
+
+    /// @notice Emitted when tokens are burned
+    /// @param from The address from which tokens were burned
+    /// @param amount The amount of tokens that were burned
+    event TokensBurned(address indexed from, uint256 amount);
+
     /// @notice Emitted when tokens are unstaked
     /// @param user The address of the user
     /// @param amount The amount of tokens unstaked
@@ -330,9 +372,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     event RewardsDistributed(address indexed user, uint256 reward);
 
     /// @notice Emitted when the current case is updated
-    /// @param currentCase The new current case
-    event CurrentCaseUpdated(uint8 indexed currentCase);
-
+    /// @param oldCase The previous case number
+    /// @param newCase The new current case number
+    event CurrentCaseUpdated(uint8 indexed oldCase, uint8 indexed newCase);
+    
     /// @notice Emitted when a user's reward is updated
     /// @param user The address of the user
     /// @param reward The new reward amount
@@ -353,6 +396,18 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param startTime The start time of the vesting
     /// @param endTime The end time of the vesting
     event VestingAdded(address indexed user, uint256 startTime, uint256 endTime);
+
+    /// @notice Emitted when a new vesting schedule is added for an account
+    /// @param account The address for which the vesting schedule was added
+    /// @param vestingType The type of vesting (0 for marketing, 1 for team)
+    /// @param scheduleIndex The index of the new vesting schedule in the account's array of schedules
+    event VestingScheduleAdded(address indexed account, uint8 vestingType, uint256 scheduleIndex);
+
+    /// @notice Emitted when a vesting schedule's active status is updated
+    /// @param account The address for which the vesting schedule was updated
+    /// @param scheduleIndex The index of the updated vesting schedule in the account's array of schedules
+    /// @param isActive The new active status of the vesting schedule
+    event VestingScheduleUpdated(address indexed account, uint256 indexed scheduleIndex, bool isActive);
 
     /// @notice Emitted when vested tokens are released
     /// @param user The address of the user
@@ -692,19 +747,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             }
             unchecked { ++i; }
         }
-    
-        // Allow staking if: 
-        // 1. Staking is enabled for everyone, OR
-        // 2. The wallet has an active vesting schedule, OR
-        // 3. The wallet is whitelisted
+
         if (!isStakingEnabled && !hasActiveVesting && !whitelist[_msgSender()]) revert StakingNotEnabled();
-    
+
         if (stakeAmount == 0) revert CannotStakeZeroTokens();
         if (isLockedUp && (lockDuration < MIN_STAKE_DURATION || lockDuration > MAX_STAKE_DURATION)) revert InvalidLockupDuration();
 
         uint8 tier = _getTierByStakeAmount(stakeAmount);
 
         _burn(_msgSender(), stakeAmount);
+        emit Transfer(_msgSender(), address(0), stakeAmount);
 
         if (_stakes[_msgSender()].amount > 0) {
             _updateReward(_msgSender());
@@ -720,7 +772,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             lockedUp: isLockedUp,
             lockupDuration: lockDuration
         });
+        emit StakeUpdated(_msgSender(), stakeAmount, tier, isLockedUp, lockDuration);
+
         ++activeStakers[tier];
+        emit ActiveStakersUpdated(tier, activeStakers[tier]);
         emit StateUpdated("activeStakers", _msgSender(), true);
 
         if (!_isHolder(_msgSender())) {
@@ -756,8 +811,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             delete _stakeRewards[_msgSender()];
             --activeStakers[tier];
             _removeStakerFromTier(tier, _msgSender());
+            emit StakeRemoved(_msgSender());
+            emit ActiveStakersUpdated(tier, activeStakers[tier]);
+            emit StakerRemovedFromTier(tier, _msgSender());
         } else {
             _stakes[_msgSender()] = stakeInfo;
+            emit StakeAmountUpdated(_msgSender(), stakeInfo.amount);
         }
 
         _updateCurrentCase();
@@ -769,6 +828,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         _transfer(stakingWallet, _msgSender(), totalAmount);
         _burn(stakingWallet, burnAmount);
+        emit TokensBurned(stakingWallet, burnAmount);
 
         emit Unstaked(_msgSender(), unstakeAmount, reward);
         emit StateUpdated("unstake", _msgSender(), true);
@@ -786,11 +846,14 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         if (lockDuration < MIN_STAKE_DURATION || lockDuration > MAX_STAKE_DURATION) revert LockDurationTooShort();
 
         Stake storage stakeInfo = _stakes[_msgSender()];
-        stakeInfo.amount += lockAmount;
+        uint256 newAmount = stakeInfo.amount + lockAmount;
+        stakeInfo.amount = newAmount;
         stakeInfo.lockedUp = true;
         stakeInfo.lockupDuration = lockDuration;
         stakeInfo.timestamp = block.timestamp;
 
+        emit StakeAmountUpdated(_msgSender(), newAmount);
+        emit StakeLockUpdated(_msgSender(), true, lockDuration);
         emit TokensLocked(_msgSender(), lockAmount, lockDuration);
         emit StateUpdated("lockTokens", _msgSender(), true);
     }
@@ -802,7 +865,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function addToVesting(address account, uint8 vestingType) external onlyOwner {
         if (account == address(0)) revert InvalidAddress();
-    
+
         uint256 startTime = block.timestamp;
         uint256 endTime;
         bool isActive = true; // Explicitly define the boolean value
@@ -820,8 +883,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             vestingType: vestingType
         });
 
+        uint256 newScheduleIndex = vestingSchedules[account].length;
         vestingSchedules[account].push(newVesting);
-    
+
+        emit VestingScheduleAdded(account, vestingType, newScheduleIndex);
         emit VestingAdded(account, startTime, endTime);
         emit StateUpdated("vesting", account, isActive);
     }
@@ -832,12 +897,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function releaseVestedTokens(address account) external {
         Vesting[] storage vestings = vestingSchedules[account];
-        uint256 vestingsLength = vestings.length; // Store the length in a local variable
+        uint256 vestingsLength = vestings.length;
         for (uint256 i; i < vestingsLength; ++i) {
             Vesting storage vesting = vestings[i];
             if (!vesting.active) continue;
             if (block.timestamp < vesting.endTime) revert VestingPeriodNotEnded();
             vesting.active = false;
+            emit VestingScheduleUpdated(account, i, false);
             emit VestingReleased(account);
             emit StateUpdated("vesting", account, false);
         }
@@ -867,6 +933,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             uint256 burnAmount = calculatedReward * BURN_RATE / 100;
             calculatedReward -= burnAmount;
             _burn(stakingWallet, burnAmount);
+            emit TokensBurned(stakingWallet, burnAmount);
         }
 
         _stakeRewards[stakerAddress] = calculatedReward;
@@ -959,17 +1026,25 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             totalStakers += activeStakers[i];
         }
 
+        emit TotalStakersUpdated(totalStakers);
+
+        uint8 newCase;
         if (totalStakers <= cases[0].maxWallets) {
-            currentCase = 0;
+            newCase = 0;
         } else if (totalStakers <= cases[1].maxWallets) {
-            currentCase = 1;
+            newCase = 1;
         } else if (totalStakers <= cases[2].maxWallets) {
-            currentCase = 2;
+            newCase = 2;
         } else {
-            currentCase = 3;
+            newCase = 3;
         }
 
-        emit CurrentCaseUpdated(currentCase);
+        if (newCase != currentCase) {
+            uint8 oldCase = currentCase;
+            currentCase = newCase;
+            emit CurrentCaseUpdated(oldCase, newCase);
+        }
+
         emit StateUpdated("currentCase", address(0), true);
     }
 
