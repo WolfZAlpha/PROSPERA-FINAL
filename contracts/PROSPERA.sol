@@ -466,6 +466,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Error for attempting to transfer vested tokens
     error VestedTokensCannotBeTransferred();
 
+    /// @notice Error for division by zero
+    error DivisionByZero();
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -1037,7 +1040,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     function divideInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
-        require(b.high != 0 || b.low != 0, "Division by zero");
+        if (b.high == 0 && b.low == 0) revert DivisionByZero();
         int256 aAbs = a.high < 0 ? -a.high : a.high;
         int256 bAbs = b.high < 0 ? -b.high : b.high;
         int256 quot = (aAbs << 128 | (a.low < 0 ? -a.low : a.low)) / (bAbs << 128 | (b.low < 0 ? -b.low : b.low));
