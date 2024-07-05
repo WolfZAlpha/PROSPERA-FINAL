@@ -681,10 +681,14 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function addToBlacklist(address account) external onlyOwner {
         if (account == address(0)) revert BlacklistZeroAddress();
+        
         _blacklist[account] = true;
+        
+        // Emit events to reflect the state change
         emit BlacklistUpdated(account, true);
         emit StateUpdated("blacklist", account, true);
     }
+
 
     /**
      * @notice Removes an address from the blacklist
