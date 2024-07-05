@@ -188,9 +188,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Tier limits
     uint256[TIER_COUNT] public tierLimits = [57143, 200000, 500000, 1500000, 10000000, 50000000];
 
-    /// @notice Decimal precision
-    uint256 private constant DECIMAL_PRECISION = 10**18;
-
     /// @notice Multiplier in basis points for each tier
     uint8[TIER_COUNT] public tierBonuses = [50, 50, 150, 175, 100, 125, 175];
 
@@ -430,9 +427,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Error for ETH transfer failed
     error EthTransferFailed();
 
-    /// @notice Error for Invalid recipient address
-    error InvalidRecipientAddress();
-
     /// @notice Error for insufficient balance in the contract
     error InsufficientBalance();
 
@@ -471,12 +465,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Error for attempting to transfer vested tokens
     error VestedTokensCannotBeTransferred();
-
-    /// @notice Error for division by zero
-    error DivisionByZero();
-
-    /// @notice Error for overflow in tier cost calculation
-    error OverflowInTierCostCalculation();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -642,26 +630,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     /**
-     * @notice Adds an address to the whitelist
-     * @param account The address to be added
-     */
-    function addToWhitelist(address account) external onlyOwner {
-        whitelist[account] = true;
-        emit AddedToWhitelist(account);
-        emit StateUpdated("whitelist", account, true);
-    }
-
-    /**
-     * @notice Removes an address from the whitelist
-     * @param account The address to be removed
-     */
-    function removeFromWhitelist(address account) external onlyOwner {
-        whitelist[account] = false;
-        emit RemovedFromWhitelist(account);
-        emit StateUpdated("whitelist", account, false);
-    }
-
-    /**
      * @notice Enables or disables staking
      * @param _enabled The new staking status (true to enable, false to disable)
      */
@@ -670,7 +638,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StakingEnabled(_enabled);
         emit StateUpdated("isStakingEnabled", address(0), _enabled);
     }
-
 
     /**
      * @notice Stakes a specified amount of tokens
@@ -801,6 +768,26 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         vestingSchedules[account].active = false;
         emit VestingReleased(account);
         emit StateUpdated("vesting", account, false);
+    }
+
+    /**
+     * @notice Adds an address to the whitelist
+     * @param account The address to be added
+     */
+    function addToWhitelist(address account) external onlyOwner {
+        whitelist[account] = true;
+        emit AddedToWhitelist(account);
+        emit StateUpdated("whitelist", account, true);
+    }
+
+    /**
+     * @notice Removes an address from the whitelist
+     * @param account The address to be removed
+     */
+    function removeFromWhitelist(address account) external onlyOwner {
+        whitelist[account] = false;
+        emit RemovedFromWhitelist(account);
+        emit StateUpdated("whitelist", account, false);
     }
 
     /**
@@ -955,7 +942,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         }
         return timestamp - leapSecondsCount;
     }
-
+    
     /**
      * @notice Checks if the current timestamp is the start of a new quarter
      * @param timestamp The timestamp to check
@@ -1050,7 +1037,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     function divideInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
-        if (b.high == 0 && b.low == 0) revert DivisionByZero();
+        require(b.high != 0 || b.low != 0, "Division by zero");
         int256 aAbs = a.high < 0 ? -a.high : a.high;
         int256 bAbs = b.high < 0 ? -b.high : b.high;
         int256 quot = (aAbs << 128 | (a.low < 0 ? -a.low : a.low)) / (bAbs << 128 | (b.low < 0 ? -b.low : b.low));
@@ -1182,7 +1169,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         while (remainingTokens > 0 && icoActive) {
             (uint256 tokensBought, uint256 tierCost) = buyFromCurrentTier(remainingTokens, remainingEth - totalCost);
-    
+        
             if (tokensBought == 0) break; // Not enough ETH to buy more tokens
 
             totalTokensBought += tokensBought;
@@ -1239,25 +1226,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         uint256 availableTokens = tierTokens - tierSold;
         tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
-    
-        // Check for potential overflow
-        if (tokensBought > type(uint256).max / tierPrice) {
-            revert OverflowInTierCostCalculation();
-        }
-        uint256 tierCostPrecise = tokensBought * tierPrice;
-        tierCost = tierCostPrecise / DECIMAL_PRECISION;
+        tierCost = (tokensBought * tierPrice) / 10**18;
 
         if (tierCost > availableEth) {
-            // Recalculate tokensBought based on availableEth
-            uint256 maxTokens = availableEth * DECIMAL_PRECISION / tierPrice;
-            tokensBought = (maxTokens < tokensBought) ? maxTokens : tokensBought;
-
-            // Recalculate tierCost
-            if (tokensBought > type(uint256).max / tierPrice) {
-                revert OverflowInTierCostCalculation();
-            }
-            tierCostPrecise = tokensBought * tierPrice;
-            tierCost = tierCostPrecise / DECIMAL_PRECISION;
+            tokensBought = availableEth * 10**18 / tierPrice;
+            tierCost = (tokensBought * tierPrice) / 10**18;
         }
 
         if (currentTier == IcoTier.Tier1) {
@@ -1297,11 +1270,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function withdrawETH() external onlyOwner nonReentrant {
         address payable ownerPayable = payable(owner());
         uint256 balance = address(this).balance;
-    
+        
         if (balance == 0) revert NoEthToWithdraw();
-    
+        
         _safeTransferETH(ownerPayable, balance);
-    
+        
         emit EthWithdrawn(ownerPayable, balance);
     }
 
@@ -1334,19 +1307,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param amount The amount of ETH to transfer
      */
     function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant {
-        // Checks
+        // Check
         if (address(this).balance < amount) revert InsufficientBalance();
-        if (recipientAddress == address(0)) revert InvalidRecipientAddress();
 
-        // Effects (update state variables before external calls)
-        // but in this case we don't have any
-
-        // Interactions (perform the external call last)
+        // Interactions
         (bool success, ) = recipientAddress.call{value: amount}("");
         if (!success) revert EthTransferFailed();
-
-        // Event Emission after the transfer
-        emit EthTransferred(recipientAddress, amount);
     }
 
     /**
