@@ -218,6 +218,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 startTime;
         uint256 endTime;
         bool active;
+        uint8 vestingType; // 0 for marketing team, 1 for PROSPERA team
+        uint256 totalAmount; // Add this field to track the vested amount
     }
 
     /// @notice Struct for high-precision integer arithmetic
@@ -348,7 +350,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param user The address of the user
     /// @param startTime The start time of the vesting
     /// @param endTime The end time of the vesting
-    event VestingAdded(address indexed user, uint256 startTime, uint256 endTime);
+    /// @param amount The amount of tokens to be vested
+    /// @param vestingType The type of vesting schedule
+    event VestingAdded(address indexed user, uint256 startTime, uint256 endTime, uint256 amount, uint8 vestingType);
 
     /// @notice Emitted when vested tokens are released
     /// @param user The address of the user
@@ -465,6 +469,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Error for attempting to transfer vested tokens
     error VestedTokensCannotBeTransferred();
+
+    /// @notice Error for invalid vesting type
+    error InvalidVestingType();
+
+    /// @notice Error for insufficient transferable balance
+    error InsufficientTransferableBalance();
 
     /// @notice Error for division by zero
     error DivisionByZero();
@@ -644,13 +654,14 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @notice Stakes a specified amount of tokens
+     * @dev This function allows staking even when staking is disabled for whitelisted or vesting accounts
      * @param stakeAmount The number of tokens to stake
      * @param isLockedUp Indicates if the tokens are locked up
      * @param lockDuration The duration for which tokens are locked up (in seconds)
      */
     function stake(uint256 stakeAmount, bool isLockedUp, uint256 lockDuration) external nonReentrant whenNotPaused {
         if (_blacklist[_msgSender()]) revert BlacklistedAddress(_msgSender());
-        if (!isStakingEnabled && !vestingSchedules[_msgSender()].active && !whitelist[_msgSender()]) revert StakingNotEnabled();
+        if (!isStakingEnabled && !whitelist[_msgSender()] && !vestingSchedules[_msgSender()].active) revert StakingNotEnabled();
         if (stakeAmount == 0) revert CannotStakeZeroTokens();
         if (isLockedUp && (lockDuration < MIN_STAKE_DURATION || lockDuration > MAX_STAKE_DURATION)) revert InvalidLockupDuration();
 
@@ -749,15 +760,52 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @notice Adds an address to the vesting schedule
-     * @param account The address to be added
+     * @dev This function can only be called by the contract owner
+     * @param account The address to be added to the vesting schedule
+     * @param amount The amount of tokens to be vested
+     * @param vestingType The type of vesting schedule (0 for marketing team, 1 for PROSPERA team)
+     * @return success True if the address was successfully added to the vesting schedule
      */
-    function addToVesting(address account) external onlyOwner {
+    function addToVesting(address account, uint256 amount, uint8 vestingType) external onlyOwner returns (bool success) {
         if (account == address(0)) revert InvalidAddress();
+        if (balanceOf(account) < amount) revert InsufficientBalance();
+
         uint256 startTime = block.timestamp;
-        uint256 endTime = startTime + 120 days; // Fixed duration of 4 months
-        vestingSchedules[account] = Vesting(startTime, endTime, true);
-        emit VestingAdded(account, startTime, endTime);
+        uint256 endTime;
+
+        if (vestingType == 0) {
+            endTime = startTime + 120 days; // 4 months for marketing team
+        } else if (vestingType == 1) {
+            endTime = startTime + 90 days; // 3 months for PROSPERA team
+        } else {
+            revert InvalidVestingType();
+        }
+
+        vestingSchedules[account] = Vesting({
+            startTime: startTime,
+            endTime: endTime,
+            active: true,
+            vestingType: vestingType,
+            totalAmount: amount
+        });
+
+        emit VestingAdded(account, startTime, endTime, amount, vestingType);
         emit StateUpdated("vesting", account, true);
+
+        success = true;
+    }
+
+    /**
+    * @notice Calculates the vested amount for a given account
+     * @dev This function is used internally to determine how many tokens have vested
+     * @param account The address for which to calculate the vested amount
+     * @return vestedAmount The amount of tokens that have vested for the given account
+     */
+    function _vestedAmount(address account) private view returns (uint256 vestedAmount) {
+        Vesting memory vesting = vestingSchedules[account];
+        if (!vesting.active || block.timestamp < vesting.startTime) return 0;
+        if (block.timestamp >= vesting.endTime) return vesting.totalAmount;
+        vestedAmount = (vesting.totalAmount * (block.timestamp - vesting.startTime)) / (vesting.endTime - vesting.startTime);
     }
 
     /**
@@ -1367,14 +1415,17 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     /**
-     * @notice Transfers tokens with vesting check
+     * @notice Transfers tokens from one address to another
+     * @dev This function overrides the standard transfer function to implement vesting restrictions
      * @param from The address sending the tokens
      * @param to The address receiving the tokens
      * @param amount The amount of tokens being transferred
      */
     function _transfer(address from, address to, uint256 amount) internal override {
-        if (vestingSchedules[from].active && block.timestamp < vestingSchedules[from].endTime) {
-            revert VestedTokensCannotBeTransferred();
+        if (vestingSchedules[from].active) {
+            uint256 vestedAmount = _vestedAmount(from);
+            uint256 transferableAmount = balanceOf(from) - (vestingSchedules[from].totalAmount - vestedAmount);
+            if (amount > transferableAmount) revert InsufficientTransferableBalance();
         }
         handleNormalBuySell(from, to, amount);
     }
