@@ -467,11 +467,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Error for vesting period not ended
     error VestingPeriodNotEnded();
 
-    /// @notice Error for attempting to transfer vested tokens
-    error VestedTokensCannotBeTransferred();
-
     /// @notice Error for invalid vesting type
     error InvalidVestingType();
+
+    /// @notice Error for attempting to transfer vested tokens before vesting is complete
+    error VestedTokensCannotBeTransferred();
 
     /// @notice Error for insufficient transferable balance
     error InsufficientTransferableBalance();
@@ -860,7 +860,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             calculatedReward = _calculateCase3Reward(_stakes[stakerAddress].amount, stakerTier, stakedDuration);
         }
 
-        // Apply burn rate to the reward if the stake is not locked up
         if (!_stakes[stakerAddress].lockedUp) {
             uint256 burnAmount = calculatedReward * BURN_RATE / 100;
             calculatedReward -= burnAmount;
@@ -1198,7 +1197,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 transferAmount = amount - burnAmount - ethTaxAmount;
 
         _burn(senderAddress, burnAmount);
-        _transfer(senderAddress, recipientAddress, transferAmount);
+        super._transfer(senderAddress, recipientAddress, transferAmount);
 
         // State changes before external calls
         _safeTransferETH(taxWallet, ethTaxAmount);
@@ -1206,9 +1205,11 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, ethTaxAmount);
     }
 
-    /// @notice Purchases tokens during the ICO
-    /// @dev This function handles the token purchase process, including tax calculation and dynamic tier transitions
-    /// @param tokenAmount The number of tokens to purchase
+    /**
+     * @notice Purchases tokens during the ICO
+     * @dev This function handles the token purchase process, including tax calculation and dynamic tier transitions
+     * @param tokenAmount The number of tokens to purchase
+     */
     function buyTokens(uint256 tokenAmount) external payable nonReentrant whenNotPaused {
         if (_blacklist[_msgSender()]) revert BlacklistedAddress(_msgSender());
         if (!icoActive) revert IcoNotActive();
@@ -1223,19 +1224,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 totalTaxAmount = ethValue * ICO_TAX_RATE / 100;
         uint256 remainingEth = ethValue - totalTaxAmount;
 
-        uint256 remainingTokens = tokenAmount;
-        uint256 totalCost;
-        uint256 totalTokensBought;
-
-        while (remainingTokens > 0 && icoActive) {
-            (uint256 tokensBought, uint256 tierCost) = buyFromCurrentTier(remainingTokens, remainingEth - totalCost);
-        
-            if (tokensBought == 0) break; // Not enough ETH to buy more tokens
-
-            totalTokensBought += tokensBought;
-            totalCost += tierCost;
-            remainingTokens -= tokensBought;
-        }
+        (uint256 totalTokensBought, uint256 totalCost) = buyFromCurrentTier(tokenAmount, remainingEth);
 
         if (totalTokensBought == 0) revert InsufficientFundsForPurchase();
         if (remainingEth < totalCost) revert IncorrectETHAmountSent();
@@ -1257,54 +1246,64 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit EthTransferred(taxWallet, totalTaxAmount);
     }
 
-    /// @notice Buys tokens from the current ICO tier
-    /// @dev This function handles purchasing from a single tier and transitions to the next if necessary
-    /// @param tokensToBuy The number of tokens attempting to buy
-    /// @param availableEth The amount of ETH available for the purchase
-    /// @return tokensBought The number of tokens successfully purchased
-    /// @return tierCost The cost of the purchased tokens
-    function buyFromCurrentTier(uint256 tokensToBuy, uint256 availableEth) private returns (uint256 tokensBought, uint256 tierCost) {
-        uint256 tierTokens;
-        uint256 tierSold;
-        uint256 tierPrice;
+    /**
+     * @notice Buys tokens from the current ICO tier and handles transitions between tiers
+     * @dev This function handles purchasing across multiple tiers if necessary
+     * @param tokensToBuy The number of tokens attempting to buy
+     * @param availableEth The amount of ETH available for the purchase
+     * @return totalTokensBought The total number of tokens successfully purchased
+     * @return totalTierCost The total cost of the purchased tokens
+     */
+    function buyFromCurrentTier(uint256 tokensToBuy, uint256 availableEth) private returns (uint256 totalTokensBought, uint256 totalTierCost) {
+        while (tokensToBuy > 0 && availableEth > 0 && icoActive) {
+            uint256 tierTokens;
+            uint256 tierSold;
+            uint256 tierPrice;
 
-        if (currentTier == IcoTier.Tier1) {
-            tierTokens = TIER1_TOKENS;
-            tierSold = tier1Sold;
-            tierPrice = TIER1_PRICE;
-        } else if (currentTier == IcoTier.Tier2) {
-            tierTokens = TIER2_TOKENS;
-            tierSold = tier2Sold;
-            tierPrice = TIER2_PRICE;
-        } else if (currentTier == IcoTier.Tier3) {
-            tierTokens = TIER3_TOKENS;
-            tierSold = tier3Sold;
-            tierPrice = TIER3_PRICE;
-        } else {
-            revert InvalidIcoTier();
-        }
+            if (currentTier == IcoTier.Tier1) {
+                tierTokens = TIER1_TOKENS;
+                tierSold = tier1Sold;
+                tierPrice = TIER1_PRICE;
+            } else if (currentTier == IcoTier.Tier2) {
+                tierTokens = TIER2_TOKENS;
+                tierSold = tier2Sold;
+                tierPrice = TIER2_PRICE;
+            } else if (currentTier == IcoTier.Tier3) {
+                tierTokens = TIER3_TOKENS;
+                tierSold = tier3Sold;
+                tierPrice = TIER3_PRICE;
+            } else {
+                revert InvalidIcoTier();
+            }
 
-        uint256 availableTokens = tierTokens - tierSold;
-        tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
-        tierCost = (tokensBought * tierPrice) / 10**18;
+            uint256 availableTokens = tierTokens - tierSold;
+            uint256 tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
+        
+            uint256 tierCost = (tokensBought * tierPrice + 10**18 - 1) / 10**18;
 
-        if (tierCost > availableEth) {
-            tokensBought = availableEth * 10**18 / tierPrice;
-            tierCost = (tokensBought * tierPrice) / 10**18;
-        }
+            if (tierCost > availableEth) {
+                tokensBought = (availableEth * 10**18 + tierPrice - 1) / tierPrice;
+                tierCost = (tokensBought * tierPrice + 10**18 - 1) / 10**18;
+            }
 
-        if (currentTier == IcoTier.Tier1) {
-            tier1Sold += tokensBought;
-            emit TierSoldUpdated(IcoTier.Tier1, tier1Sold);
-            if (tier1Sold >= TIER1_TOKENS) updateIcoTier(IcoTier.Tier2);
-        } else if (currentTier == IcoTier.Tier2) {
-            tier2Sold += tokensBought;
-            emit TierSoldUpdated(IcoTier.Tier2, tier2Sold);
-            if (tier2Sold >= TIER2_TOKENS) updateIcoTier(IcoTier.Tier3);
-        } else if (currentTier == IcoTier.Tier3) {
-            tier3Sold += tokensBought;
-            emit TierSoldUpdated(IcoTier.Tier3, tier3Sold);
-            if (tier3Sold >= TIER3_TOKENS) endIco();
+            totalTokensBought += tokensBought;
+            totalTierCost += tierCost;
+            tokensToBuy -= tokensBought;
+            availableEth -= tierCost;
+
+            if (currentTier == IcoTier.Tier1) {
+                tier1Sold += tokensBought;
+                emit TierSoldUpdated(IcoTier.Tier1, tier1Sold);
+                if (tier1Sold >= TIER1_TOKENS) updateIcoTier(IcoTier.Tier2);
+            } else if (currentTier == IcoTier.Tier2) {
+                tier2Sold += tokensBought;
+                emit TierSoldUpdated(IcoTier.Tier2, tier2Sold);
+                if (tier2Sold >= TIER2_TOKENS) updateIcoTier(IcoTier.Tier3);
+            } else if (currentTier == IcoTier.Tier3) {
+                tier3Sold += tokensBought;
+                emit TierSoldUpdated(IcoTier.Tier3, tier3Sold);
+                if (tier3Sold >= TIER3_TOKENS) endIco();
+            }
         }
     }
 
@@ -1416,17 +1415,35 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @notice Transfers tokens from one address to another
-     * @dev This function overrides the standard transfer function to implement vesting restrictions
+     * @dev This function overrides the standard transfer function to implement vesting restrictions,
+     *      blacklist checks, and tax/burn mechanism
      * @param from The address sending the tokens
      * @param to The address receiving the tokens
      * @param amount The amount of tokens being transferred
      */
     function _transfer(address from, address to, uint256 amount) internal override {
-        if (vestingSchedules[from].active) {
-            uint256 vestedAmount = _vestedAmount(from);
-            uint256 transferableAmount = balanceOf(from) - (vestingSchedules[from].totalAmount - vestedAmount);
-            if (amount > transferableAmount) revert InsufficientTransferableBalance();
+        // Check if sender is blacklisted
+        if (_blacklist[from]) {
+            revert BlacklistedAddress(from);
         }
-        handleNormalBuySell(from, to, amount);
+
+        // Check if recipient is blacklisted
+        if (_blacklist[to]) {
+            revert BlacklistedAddress(to);
+        }
+
+        // Check for vesting schedule
+        if (vestingSchedules[from].active) {
+            if (block.timestamp < vestingSchedules[from].endTime) {
+                revert VestedTokensCannotBeTransferred();
+            }
+        }
+    
+        // Simple transfer between wallets (no tax or burn)
+        if (from != address(this) && to != address(this) && from != owner() && to != owner() && from != taxWallet && to != taxWallet) {
+            super._transfer(from, to, amount);
+        } else {
+            handleNormalBuySell(from, to, amount);
+        }
     }
 }
