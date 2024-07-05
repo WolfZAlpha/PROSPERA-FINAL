@@ -680,14 +680,17 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function stake(uint256 stakeAmount, bool isLockedUp, uint256 lockDuration) external nonReentrant whenNotPaused {
         if (_blacklist[_msgSender()]) revert BlacklistedAddress(_msgSender());
-    
-        bool hasActiveVesting = false;
+
         Vesting[] storage vestings = vestingSchedules[_msgSender()];
-        for (uint256 i = 0; i < vestings.length; i++) {
+        uint256 vestingsLength = vestings.length;
+        bool hasActiveVesting;
+
+        for (uint256 i; i < vestingsLength;) {
             if (vestings[i].active) {
                 hasActiveVesting = true;
                 break;
             }
+            unchecked { ++i; }
         }
     
         // Allow staking if: 
