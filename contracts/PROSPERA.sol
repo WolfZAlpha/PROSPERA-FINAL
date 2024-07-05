@@ -968,8 +968,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @return millisecond The millisecond (0-999)
      */
     function _timestampToDate(uint256 timestamp) private view returns (
-        uint256 year, uint256 month, uint256 day, 
-        uint256 hour, uint256 minute, uint256 second, uint256 millisecond
+        uint256 year,
+        uint256 month,
+        uint256 day,
+        uint256 hour,
+        uint256 minute,
+        uint256 second,
+        uint256 millisecond
     ) {
         timestamp = adjustForLeapSeconds(timestamp);
 
@@ -1018,6 +1023,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         hour = secondsOfDay / 3600;
         minute = (secondsOfDay % 3600) / 60;
         second = secondsOfDay % 60;
+
+        // These assignments are not strictly necessary as Solidity will automatically
+        // return the named return variables, but they make the returns explicit
+        return (year, month, day, hour, minute, second, millisecond);
     }
     
     // Helper functions for Int512 arithmetic
@@ -1269,8 +1278,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     
     /**
      * @notice Withdraws all ETH from the contract to the owner's address
+     * @return success True if the withdrawal was successful
      */
-    function withdrawETH() external onlyOwner nonReentrant {
+    function withdrawETH() external onlyOwner nonReentrant returns (bool success) {
         address payable ownerPayable = payable(owner());
         uint256 balance = address(this).balance;
         
@@ -1279,6 +1289,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _safeTransferETH(ownerPayable, balance);
         
         emit EthWithdrawn(ownerPayable, balance);
+        success = true;
     }
 
     /// @notice Fallback function to receive ETH
@@ -1298,23 +1309,24 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         uint256 holdersLength = holders.length;
         for (uint256 i; i < holdersLength; ++i) {
             if (holders[i] == accountAddress) {
-                isHolder = true;
+                return true;
             }
         }
-        isHolder = false;
+        return false;
     }
 
     /**
      * @notice Safely transfers ETH to an address
      * @param recipientAddress The address to receive the ETH
      * @param amount The amount of ETH to transfer
+     * @return success True if the transfer was successful, false otherwise
      */
-    function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant {
+    function _safeTransferETH(address recipientAddress, uint256 amount) private nonReentrant returns (bool success) {
         // Check
         if (address(this).balance < amount) revert InsufficientBalance();
 
         // Interactions
-        (bool success, ) = recipientAddress.call{value: amount}("");
+        (success, ) = recipientAddress.call{value: amount}("");
         if (!success) revert EthTransferFailed();
     }
 
@@ -1323,8 +1335,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param senderAddress The address sending the tokens
      * @param recipientAddress The address receiving the tokens
      * @param amount The amount of tokens being transferred
+     * @return success True if the transfer was successful
      */
-    function _transferWithTaxAndBurn(address senderAddress, address recipientAddress, uint256 amount) private {
+    function _transferWithTaxAndBurn(address senderAddress, address recipientAddress, uint256 amount) private returns (bool success) {
         if (senderAddress == address(0)) revert TransferFromZeroAddress();
         if (recipientAddress == address(0)) revert TransferToZeroAddress();
 
@@ -1338,6 +1351,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _safeTransferETH(taxWallet, taxAmount);
 
         emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, taxAmount);
+        success = true;
     }
 
     /**
