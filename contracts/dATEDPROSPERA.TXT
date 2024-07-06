@@ -14,7 +14,7 @@ import {ABDKMath64x64} from "abdk-libraries-solidity/ABDKMath64x64.sol";
 /// @custom:security-contact security@prosperadefi.com
 contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
 
-    /// @notice Total supply of tokens
+/// @notice Total supply of tokens
     uint256 private constant TOTAL_SUPPLY = 1e9 * 10**18;
 
     /// @notice Tokens allocated for staking rewards
@@ -224,8 +224,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Struct for high-precision integer arithmetic
     struct Int512 {
-        int256 high;
-        int256 low;
+    int256 high;
+    int256 low;
     }
 
     /// @notice Leap second table (Unix timestamps of leap seconds)
@@ -317,7 +317,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param newTier The new ICO tier
     event CurrentTierUpdated(IcoTier indexed newTier);
 
-/// @notice Emitted when a snapshot is taken for a user
+    /// @notice Emitted when a snapshot is taken for a user
     /// @param user The address of the user
     /// @param isEligible Whether the user is eligible for the snapshot
     event SnapshotTaken(address indexed user, bool isEligible);
@@ -481,6 +481,22 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the contract with the specified parameters
+     * @param _usdcToken Address of the USDC token contract
+     * @param _deployerWallet Address of the deployer wallet
+     * @param _taxWallet Address of the tax wallet
+     * @param _stakingWallet Address of the staking wallet
+     * @param _icoWallet Address of the ICO wallet
+     * @param _prosicoWallet Address of the prosico wallet
+     * @param _liquidityWallet Address of the liquidity wallet
+     * @param _farmingWallet Address of the farming wallet
+     * @param _listingWallet Address of the listing wallet
+     * @param _reserveWallet Address of the reserve wallet
+     * @param _marketingWallet Address of the marketing wallet
+     * @param _teamWallet Address of the team wallet
+     * @param _devWallet Address of the dev wallet
+     */
     function initialize(
         address _usdcToken,
         address _deployerWallet,
@@ -659,7 +675,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         _stakes[_msgSender()] = Stake({
             amount: stakeAmount,
-timestamp: block.timestamp,
+            timestamp: block.timestamp,
             tier: tier,
             lockedUp: isLockedUp,
             lockupDuration: lockDuration
@@ -980,33 +996,8 @@ timestamp: block.timestamp,
      * @return isQuarterStart True if it is the start of a new quarter, false otherwise
      */
     function _isQuarterStart(uint256 timestamp) private view returns (bool) {
-        (uint256 year, uint256 month, uint256 day, uint256 hour, uint256 minute, uint256 second, uint256 millisecond) = _timestampToDate(timestamp);
-    
-        // Check if it's the first day of a quarter month
-        bool isQuarterMonth = (month == 1 || month == 4 || month == 7 || month == 10);
-        bool isFirstDay = (day == 1);
-    
-        // leap year calls for extreme precision
-        if (isLeapYear(year)) {
-            // In leap years, we need to adjust for the extra day
-            // This is especially important for Q2 start (April 1st)
-            if (month == 4 && day == 1) {
-                // We ensure it's exactly the start of April 1st here
-                return hour == 0 && minute == 0 && second == 0 && millisecond == 0;
-            }
-        }
-    
-        // For non-leap years or other quarters in leap years
-        return isQuarterMonth && isFirstDay && hour == 0 && minute == 0 && second == 0 && millisecond == 0;
-    }
-
-    /**
-     * @notice Checks if a given year is a leap year
-     * @param year The year to check
-     * @return True if it's a leap year, false otherwise
-     */
-    function isLeapYear(uint256 year) private pure returns (bool) {
-        return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+        (uint256 year, uint256 month, uint256 day, , , ,) = _timestampToDate(timestamp);
+        return (month == 1 || month == 4 || month == 7 || month == 10) && day == 1;
     }
 
     /**
@@ -1077,6 +1068,8 @@ timestamp: block.timestamp,
         minute = (secondsOfDay % 3600) / 60;
         second = secondsOfDay % 60;
 
+        // These assignments are not strictly necessary as Solidity will automatically
+        // return the named return variables, but they make the returns explicit
         return (year, month, day, hour, minute, second, millisecond);
     }
     
@@ -1201,7 +1194,7 @@ timestamp: block.timestamp,
         uint256 transferAmount = amount - burnAmount - ethTaxAmount;
 
         _burn(senderAddress, burnAmount);
-        super._update(senderAddress, recipientAddress, transferAmount);
+        super._transfer(senderAddress, recipientAddress, transferAmount);
 
         // State changes before external calls
         _safeTransferETH(taxWallet, ethTaxAmount);
@@ -1237,7 +1230,7 @@ timestamp: block.timestamp,
         _icoBuys[_msgSender()] += totalCost;
         emit IcoBuyUpdated(_msgSender(), _icoBuys[_msgSender()]);
 
-        _update(prosicoWallet, _msgSender(), totalTokensBought);
+        _transfer(prosicoWallet, _msgSender(), totalTokensBought);
         emit TokensPurchased(_msgSender(), totalTokensBought, totalCost);
         emit StateUpdated("IcoPurchase", _msgSender(), true);
 
@@ -1337,7 +1330,7 @@ timestamp: block.timestamp,
         
         if (balance == 0) revert NoEthToWithdraw();
         
-_safeTransferETH(ownerPayable, balance);
+        _safeTransferETH(ownerPayable, balance);
         
         emit EthWithdrawn(ownerPayable, balance);
         success = true;
@@ -1384,6 +1377,30 @@ _safeTransferETH(ownerPayable, balance);
     }
 
     /**
+     * @notice Transfers tokens with tax and burn applied
+     * @param senderAddress The address sending the tokens
+     * @param recipientAddress The address receiving the tokens
+     * @param amount The amount of tokens being transferred
+     * @return success True if the transfer was successful
+     */
+    function _transferWithTaxAndBurn(address senderAddress, address recipientAddress, uint256 amount) private returns (bool success) {
+        if (senderAddress == address(0)) revert TransferFromZeroAddress();
+        if (recipientAddress == address(0)) revert TransferToZeroAddress();
+
+        uint256 burnAmount = amount * BURN_RATE / 100;
+        uint256 taxAmount = amount * TAX_RATE / 100;
+        uint256 transferAmount = amount - burnAmount - taxAmount;
+
+        _burn(senderAddress, burnAmount);
+        _transfer(senderAddress, recipientAddress, transferAmount);
+
+        _safeTransferETH(taxWallet, taxAmount);
+
+        emit TransferWithTaxAndBurn(senderAddress, recipientAddress, amount, burnAmount, taxAmount);
+        success = true;
+    }
+
+    /**
      * @notice Updates the internal state during transfers
      * @param from The address sending the tokens
      * @param to The address receiving the tokens
@@ -1391,7 +1408,17 @@ _safeTransferETH(ownerPayable, balance);
      */
     function _update(address from, address to, uint256 value) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
         super._update(from, to, value);
+    }
 
+    /**
+     * @notice Transfers tokens from one address to another
+     * @dev This function overrides the standard transfer function to implement vesting restrictions,
+     *      blacklist checks, and tax/burn mechanism
+     * @param from The address sending the tokens
+     * @param to The address receiving the tokens
+     * @param amount The amount of tokens being transferred
+     */
+    function _transfer(address from, address to, uint256 amount) internal override {
         // Check if sender is blacklisted
         if (_blacklist[from]) {
             revert BlacklistedAddress(from);
@@ -1411,9 +1438,9 @@ _safeTransferETH(ownerPayable, balance);
     
         // Simple transfer between wallets (no tax or burn)
         if (from != address(this) && to != address(this) && from != owner() && to != owner() && from != taxWallet && to != taxWallet) {
-            // No additional logic needed, the transfer is handled by the parent _update function
+            super._transfer(from, to, amount);
         } else {
-            handleNormalBuySell(from, to, value);
+            handleNormalBuySell(from, to, amount);
         }
     }
 }

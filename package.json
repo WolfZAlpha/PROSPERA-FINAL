@@ -13,7 +13,10 @@
     "@openzeppelin/contracts": "^5.0.0",
     "@openzeppelin/contracts-upgradeable": "^5.0.0",
     "@openzeppelin/hardhat-upgrades": "^3.0.0",
-    "hardhat": "^2.16.1"
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "hardhat": "^2.16.1",
+    "typechain": "^8.3.2"
   },
   "dependencies": {
     "abdk-libraries-solidity": "^3.2.0",
