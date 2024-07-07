@@ -239,6 +239,49 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         773020800, 820454400, 867715200, 915148800, 1136073600, 1230768000, 1341100800, 1435708800, 1483228800
     ];
 
+    /// @dev Struct to group initialization parameters for the PROSPERA contract
+    struct InitializeParams {
+    
+        /// @notice Address of the USDC token contract
+        address usdcToken;
+    
+        /// @notice Address of the deployer wallet
+        address deployerWallet;
+    
+        /// @notice Address of the tax wallet
+        address taxWallet;
+    
+        /// @notice Address of the staking wallet
+        address stakingWallet;
+    
+        /// @notice Address of the ICO wallet
+        address icoWallet;
+
+        /// @notice Address of the Prosico wallet
+        address prosicoWallet;
+    
+        /// @notice Address of the liquidity wallet
+        address liquidityWallet;
+    
+        /// @notice Address of the farming wallet
+        address farmingWallet;
+    
+        /// @notice Address of the listing wallet
+        address listingWallet;
+    
+        /// @notice Address of the reserve wallet
+        address reserveWallet;
+    
+        /// @notice Address of the marketing wallet
+        address marketingWallet;
+    
+        /// @notice Address of the team wallet
+        address teamWallet;
+    
+        /// @notice Address of the dev wallet
+        address devWallet;
+    }
+
     // Events
     /// @notice Emitted when a user is added or removed from the blacklist
     /// @param user The address of the user
@@ -466,74 +509,54 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /**
      * @notice Initializes the contract with the specified parameters
-     * @param _usdcToken Address of the USDC token contract
-     * @param _deployerWallet Address of the deployer wallet
-     * @param _taxWallet Address of the tax wallet
-     * @param _stakingWallet Address of the staking wallet
-     * @param _icoWallet Address of the ICO wallet
-     * @param _prosicoWallet Address of the prosico wallet
-     * @param _liquidityWallet Address of the liquidity wallet
-     * @param _farmingWallet Address of the farming wallet
-     * @param _listingWallet Address of the listing wallet
-     * @param _reserveWallet Address of the reserve wallet
-     * @param _marketingWallet Address of the marketing wallet
-     * @param _teamWallet Address of the team wallet
-     * @param _devWallet Address of the dev wallet
+     * @param params Struct containing all initialization parameters
+     * @dev This function sets up the initial state of the contract, including setting up wallets and minting the total supply
+     * @custom:oz-upgrades-unsafe-allow constructor
      */
-    function initialize(
-        address _usdcToken,
-        address _deployerWallet,
-        address _taxWallet,
-        address _stakingWallet,
-        address _icoWallet,
-        address _prosicoWallet,
-        address _liquidityWallet,
-        address _farmingWallet,
-        address _listingWallet,
-        address _reserveWallet,
-        address _marketingWallet,
-        address _teamWallet,
-        address _devWallet
-    ) initializer external {
+    function initialize(InitializeParams memory params) initializer external {
         __ERC20_init("PROSPERA", "PROS");
         __ERC20Burnable_init();
         __ERC20Pausable_init();
-        __Ownable_init(_deployerWallet);
+        __Ownable_init(params.deployerWallet);
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
-        usdcToken = _usdcToken;
-        taxWallet = _taxWallet;
-        stakingWallet = _stakingWallet;
-        icoWallet = _icoWallet;
-        prosicoWallet = _prosicoWallet;
+        // Set the addresses for various wallets
+        usdcToken = params.usdcToken;
+        taxWallet = params.taxWallet;
+        stakingWallet = params.stakingWallet;
+        icoWallet = params.icoWallet;
+        prosicoWallet = params.prosicoWallet;
 
-        StorageSlot.getAddressSlot(STAKING_WALLET_SLOT).value = _stakingWallet;
-        StorageSlot.getAddressSlot(LIQUIDITY_WALLET_SLOT).value = _liquidityWallet;
-        StorageSlot.getAddressSlot(FARMING_WALLET_SLOT).value = _farmingWallet;
-        StorageSlot.getAddressSlot(LISTING_WALLET_SLOT).value = _listingWallet;
-        StorageSlot.getAddressSlot(RESERVE_WALLET_SLOT).value = _reserveWallet;
-        StorageSlot.getAddressSlot(MARKETING_WALLET_SLOT).value = _marketingWallet;
-        StorageSlot.getAddressSlot(TEAM_WALLET_SLOT).value = _teamWallet;
-        StorageSlot.getAddressSlot(DEV_WALLET_SLOT).value = _devWallet;
+        // Assign addresses to specific storage slots
+        StorageSlot.getAddressSlot(STAKING_WALLET_SLOT).value = params.stakingWallet;
+        StorageSlot.getAddressSlot(LIQUIDITY_WALLET_SLOT).value = params.liquidityWallet;
+        StorageSlot.getAddressSlot(FARMING_WALLET_SLOT).value = params.farmingWallet;
+        StorageSlot.getAddressSlot(LISTING_WALLET_SLOT).value = params.listingWallet;
+        StorageSlot.getAddressSlot(RESERVE_WALLET_SLOT).value = params.reserveWallet;
+        StorageSlot.getAddressSlot(MARKETING_WALLET_SLOT).value = params.marketingWallet;
+        StorageSlot.getAddressSlot(TEAM_WALLET_SLOT).value = params.teamWallet;
+        StorageSlot.getAddressSlot(DEV_WALLET_SLOT).value = params.devWallet;
 
-        _mint(_deployerWallet, TOTAL_SUPPLY);
+        // Mint the total supply to the deployer's wallet
+        _mint(params.deployerWallet, TOTAL_SUPPLY);
 
-        emit Initialized(_deployerWallet);
+        // Emit events to log initialization and wallet setups
+        emit Initialized(params.deployerWallet);
         emit WalletAddressSet("USDC Token", usdcToken);
         emit WalletAddressSet("Tax Wallet", taxWallet);
         emit WalletAddressSet("Staking Wallet", stakingWallet);
         emit WalletAddressSet("ICO Wallet", icoWallet);
         emit WalletAddressSet("Prosico Wallet", prosicoWallet);
-        emit WalletAddressSet("Liquidity Wallet", _liquidityWallet);
-        emit WalletAddressSet("Farming Wallet", _farmingWallet);
-        emit WalletAddressSet("Listing Wallet", _listingWallet);
-        emit WalletAddressSet("Reserve Wallet", _reserveWallet);
-        emit WalletAddressSet("Marketing Wallet", _marketingWallet);
-        emit WalletAddressSet("Team Wallet", _teamWallet);
-        emit WalletAddressSet("Dev Wallet", _devWallet);
-        
-        //initialize the cases
+        emit WalletAddressSet("Liquidity Wallet", params.liquidityWallet);
+        emit WalletAddressSet("Farming Wallet", params.farmingWallet);
+        emit WalletAddressSet("Listing Wallet", params.listingWallet);
+        emit WalletAddressSet("Reserve Wallet", params.reserveWallet);
+        emit WalletAddressSet("Marketing Wallet", params.marketingWallet);
+        emit WalletAddressSet("Team Wallet", params.teamWallet);
+        emit WalletAddressSet("Dev Wallet", params.devWallet);
+    
+        // Initialize the reward cases
         cases[0] = Case({
             maxWallets: 1500,
             maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
@@ -1412,7 +1435,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     
         // Simple transfer between wallets (no tax or burn)
         if (from != address(this) && to != address(this) && from != owner() && to != owner() && from != taxWallet && to != taxWallet) {
-            // No additional logic needed, the transfer is handled by the parent _update function
+            //transfer is handled by the parent _update function
         } else {
             handleNormalBuySell(from, to, value);
         }
