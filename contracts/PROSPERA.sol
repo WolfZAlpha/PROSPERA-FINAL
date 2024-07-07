@@ -249,11 +249,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param enabled The new staking status
     event StakingEnabled(bool indexed enabled);
 
-    /// @notice Emitted when revenue is shared
-    /// @param user The address of the user
-    /// @param amount The amount of revenue shared
-    event RevenueShared(address indexed user, uint256 amount);
-
     /// @notice Emitted when tokens are purchased during the ICO
     /// @param buyer The address of the buyer
     /// @param amount The amount of tokens purchased
@@ -326,11 +321,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param isEligible Whether the user is eligible for the snapshot
     event SnapshotTaken(address indexed user, bool isEligible);
 
-    /// @notice Emitted when rewards are distributed to a user
-    /// @param user The address of the user
-    /// @param reward The amount of reward distributed
-    event RewardsDistributed(address indexed user, uint256 reward);
-
     /// @notice Emitted when the current case is updated
     /// @param currentCase The new current case
     event CurrentCaseUpdated(uint8 indexed currentCase);
@@ -339,11 +329,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param user The address of the user
     /// @param reward The new reward amount
     event RewardUpdated(address indexed user, uint256 reward);
-
-    /// @notice Emitted when the tier capacity is checked
-    /// @param tier The tier number
-    /// @param hasCapacity Whether the tier has capacity
-    event TierCapacityChecked(uint8 indexed tier, bool hasCapacity);
 
     /// @notice Emitted when a wallet address is set
     /// @param walletType The type of wallet
@@ -440,12 +425,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Error for when there's no ETH to withdraw
     error NoEthToWithdraw();
-
-    /// @notice Error for transfer from zero address
-    error TransferFromZeroAddress();
-
-    /// @notice Error for transfer to zero address
-    error TransferToZeroAddress();
 
     /// @notice Error for invalid lockup duration
     error InvalidLockupDuration();
@@ -1301,7 +1280,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             uint256 availableTokens = tierTokens - tierSold;
             uint256 tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
         
-uint256 tierCost = (tokensBought * tierPrice + 10**18 - 1) / 10**18;
+            uint256 tierCost = (tokensBought * tierPrice + 10**18 - 1) / 10**18;
 
             if (tierCost > availableEth) {
                 tokensBought = (availableEth * 10**18 + tierPrice - 1) / tierPrice;
