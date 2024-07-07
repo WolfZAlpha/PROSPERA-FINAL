@@ -11,10 +11,6 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {ABDKMath64x64} from "abdk-libraries-solidity/ABDKMath64x64.sol";
 
-/// @title PROSPERA Token Contract
-/// @author Prospera Development Team
-/// @notice This contract implements the PROSPERA token with various functionalities including staking, ICO, and vesting
-/// @dev This contract is upgradeable and follows the UUPS proxy pattern
 /// @custom:security-contact security@prosperadefi.com
 contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
 
@@ -321,7 +317,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @param newTier The new ICO tier
     event CurrentTierUpdated(IcoTier indexed newTier);
 
-    /// @notice Emitted when a snapshot is taken for a user
+/// @notice Emitted when a snapshot is taken for a user
     /// @param user The address of the user
     /// @param isEligible Whether the user is eligible for the snapshot
     event SnapshotTaken(address indexed user, bool isEligible);
@@ -484,7 +480,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     constructor() {
         _disableInitializers();
     }
-
+    
     /**
      * @notice Initializes the contract with the specified parameters
      * @param _usdcToken Address of the USDC token contract
@@ -517,6 +513,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         address _devWallet
     ) initializer external {
         __ERC20_init("PROSPERA", "PROS");
+        emit Initialized(_deployerWallet);
+
         __ERC20Burnable_init();
         __ERC20Pausable_init();
         __Ownable_init(_deployerWallet);
@@ -540,7 +538,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         _mint(_deployerWallet, TOTAL_SUPPLY);
 
-        emit Initialized(_deployerWallet);
         emit WalletAddressSet("USDC Token", usdcToken);
         emit WalletAddressSet("Tax Wallet", taxWallet);
         emit WalletAddressSet("Staking Wallet", stakingWallet);
@@ -586,21 +583,21 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         // Disable initializers to prevent re-initialization
         _disableInitializers();
         emit StateUpdated("initializersDisabled", address(0), true);
+
+        emit Initialized(_deployerWallet);
     }
 
     /**
      * @notice Authorizes an upgrade to a new implementation
      * @dev This function is left empty but is required by the UUPSUpgradeable contract
-     * @param newImplementation Address of the new implementation
      */
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /**
      * @notice Pauses all token transfers
      */
     function pause() external onlyOwner {
         _pause();
-        emit StateUpdated("paused", address(0), true);
     }
 
     /**
@@ -608,7 +605,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function unpause() external onlyOwner {
         _unpause();
-        emit StateUpdated("paused", address(0), false);
     }
 
     /**
@@ -679,7 +675,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
         _stakes[_msgSender()] = Stake({
             amount: stakeAmount,
-            timestamp: block.timestamp,
+timestamp: block.timestamp,
             tier: tier,
             lockedUp: isLockedUp,
             lockupDuration: lockDuration
@@ -797,7 +793,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     }
 
     /**
-     * @notice Calculates the vested amount for a given account
+    * @notice Calculates the vested amount for a given account
      * @dev This function is used internally to determine how many tokens have vested
      * @param account The address for which to calculate the vested amount
      * @return vestedAmount The amount of tokens that have vested for the given account
@@ -882,7 +878,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[0].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
+        uint256 stakedAmount = amount; // Explicitly use amount
         reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
@@ -895,7 +891,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[1].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
+        uint256 stakedAmount = amount; // Explicitly use amount
         reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
@@ -908,7 +904,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[2].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
+        uint256 stakedAmount = amount; // Explicitly use amount
         reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
@@ -921,7 +917,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
         uint256 dailyYieldDecimal = cases[3].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
+        uint256 stakedAmount = amount; // Explicitly use amount
         reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
@@ -993,7 +989,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         }   
         adjustedTimestamp = timestamp - leapSecondsCount;
     }
-
+    
     /**
      * @notice Checks if the current timestamp is the start of a new quarter
      * @param timestamp The timestamp to check
@@ -1062,30 +1058,30 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             Int512(0, int256(2440588))
         );
 
-        Int512 memory j = addInt512(julianDay, Int512(0, int256(32044)));
-        Int512 memory g = divideInt512(j, Int512(0, int256(146097)));
-        Int512 memory dg = subtractInt512(j, multiplyInt512(Int512(0, int256(146097)), g));
+        Int512 memory j = addInt512(julianDay, Int512(0, 32044));
+        Int512 memory g = divideInt512(j, Int512(0, 146097));
+        Int512 memory dg = subtractInt512(j, multiplyInt512(Int512(0, 146097), g));
         Int512 memory c = divideInt512(
-            multiplyInt512(subtractInt512(dg, Int512(0, int256(1))), Int512(0, int256(3))),
-            Int512(0, int256(4))
+            multiplyInt512(subtractInt512(dg, Int512(0, 1)), Int512(0, 3)),
+            Int512(0, 4)
         );
-        Int512 memory d = subtractInt512(dg, multiplyInt512(c, Int512(0, int256(4))));
+        Int512 memory d = subtractInt512(dg, multiplyInt512(c, Int512(0, 4)));
         Int512 memory m = divideInt512(
-            multiplyInt512(subtractInt512(d, Int512(0, int256(1))), Int512(0, int256(5))),
-            Int512(0, int256(153))
+            multiplyInt512(subtractInt512(d, Int512(0, 1)), Int512(0, 5)),
+            Int512(0, 153)
         );
         Int512 memory n = addInt512(
-            multiplyInt512(Int512(0, int256(100)), g),
-            divideInt512(m, Int512(0, int256(16)))
+            multiplyInt512(Int512(0, 100), g),
+            divideInt512(m, Int512(0, 16))
         );
-        Int512 memory _year = subtractInt512(n, Int512(0, int256(4800)));
+        Int512 memory _year = subtractInt512(n, Int512(0, 4800));
         Int512 memory _month = subtractInt512(
-            subtractInt512(m, Int512(0, int256(2))),
-            multiplyInt512(Int512(0, int256(12)), divideInt512(m, Int512(0, int256(10))))
+            subtractInt512(m, Int512(0, 2)),
+            multiplyInt512(Int512(0, 12), divideInt512(m, Int512(0, 10)))
         );
         Int512 memory _day = subtractInt512(
-            subtractInt512(d, multiplyInt512(Int512(0, int256(153)), m)),
-            Int512(0, int256(2))
+            subtractInt512(d, multiplyInt512(Int512(0, 153), m)),
+            Int512(0, 2)
         );
 
         year = uint256(_year.low);
@@ -1096,6 +1092,8 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         hour = secondsOfDay / 3600;
         minute = (secondsOfDay % 3600) / 60;
         second = secondsOfDay % 60;
+
+        return (year, month, day, hour, minute, second, millisecond);
     }
     
     // Helper functions for Int512 arithmetic
@@ -1107,7 +1105,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     function subtractInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
         int256 lowDiff = a.low - b.low;
-        int256 highDiff = a.high - b.high - (lowDiff > a.low ? int256(1) : int256(0));
+        int256 highDiff = a.high - b.high - (lowDiff > a.low ? int256(-1) : int256(0));
         return Int512(highDiff, lowDiff);
     }
 
@@ -1301,7 +1299,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
             uint256 availableTokens = tierTokens - tierSold;
             uint256 tokensBought = (tokensToBuy < availableTokens) ? tokensToBuy : availableTokens;
         
-uint256 tierCost = (tokensBought * tierPrice + 10**18 - 1) / 10**18;
+            uint256 tierCost = (tokensBought * tierPrice + 10**18 - 1) / 10**18;
 
             if (tierCost > availableEth) {
                 tokensBought = (availableEth * 10**18 + tierPrice - 1) / tierPrice;
@@ -1355,7 +1353,7 @@ uint256 tierCost = (tokensBought * tierPrice + 10**18 - 1) / 10**18;
         
         if (balance == 0) revert NoEthToWithdraw();
         
-        _safeTransferETH(ownerPayable, balance);
+_safeTransferETH(ownerPayable, balance);
         
         emit EthWithdrawn(ownerPayable, balance);
         success = true;
