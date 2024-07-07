@@ -12,7 +12,7 @@ import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {ABDKMath64x64} from "abdk-libraries-solidity/ABDKMath64x64.sol";
 
 /// @title PROSPERA Token Contract
-/// @author Prospera Development Team - Code Written By Founder/Owner: '15440397940800' , Audited/Guidance by: '258840480000' , Project Manager: '298248087266945834683392000'
+/// @author Prospera Development Team - Code Written By Founder/Owner: '15440397940800' , Audited/Guidance by: '258840480000' , Contributor: '298248087266945834683392000'
 /// @author dApp Developer's and connector's: '84035382421388400' , RevShare Backed By: '1032648170521968_3341360880'
 /// @notice This contract implements the PROSPERA token with various functionalities - will be upgraded to OMNICHAIN as time moves forward
 /// @custom:security-contact security@prosperadefi.com
@@ -1005,7 +1005,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      * @param timestamp The timestamp to check
      * @return isQuarterStart True if it is the start of a new quarter, false otherwise
      */
-    function _isQuarterStart(uint256 timestamp) private view returns (bool isQuarterStart) {
+    function _isQuarterStart(uint256 timestamp) private view returns (bool) {
         (uint256 year, uint256 month, uint256 day, uint256 hour, uint256 minute, uint256 second, uint256 millisecond) = _timestampToDate(timestamp);
     
         // Check if it's the first day of a quarter month
