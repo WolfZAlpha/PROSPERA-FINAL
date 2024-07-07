@@ -6,23 +6,43 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
+/**
+ * @notice Hardhat User Configuration
+ * @dev This configuration file sets up the necessary compilers, optimizations, and network settings for the Hardhat environment
+ */
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.20",
-    settings: {
-      optimizer: {
-        enabled: true,
+    compilers: [
+      {
+        version: "0.8.20",
+        settings: {
+          optimizer: {
+            enabled: true, // Enable optimizer
+            runs: 200, // Optimize for how many times you intend to run the code
+            details: {
+              yul: true, // Enable Yul optimizer
+              yulDetails: {
+                stackAllocation: true, // Enable stack allocation in Yul optimizer
+                optimizerSteps: "u", // Enable the IR-based optimizer
+              },
+            },
+          },
+        },
       },
-    },
+    ],
   },
   typechain: {
-    outDir: "typechain",
-    target: "ethers-v6",
+    outDir: "typechain", // Directory to output the TypeChain generated files
+    target: "ethers-v6", // Target framework for TypeChain
+  },
+  defender: {
+    apiKey: process.env.DEFENDER_KEY as string, // Defender API key from environment variables
+    apiSecret: process.env.DEFENDER_SECRET as string, // Defender API secret from environment variables
   },
   networks: {
-    arbitrum: {
-      url: process.env.ARBITRUM_RPC_URL || "",
-      accounts: process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
+    sepolia: {
+      url: "https://arb1.arbitrum.io/rpc", // URL for the Sepolia network
+      chainId: 42161, // Chain ID for the Sepolia network
     },
   },
 };

@@ -977,75 +977,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StateUpdated("currentCase", address(0), true);
     }
 
-    /**
-     * @notice Adjusts the timestamp for leap seconds
-     * @param timestamp The timestamp to adjust
-     * @return adjustedTimestamp The adjusted timestamp
-     */
-    function adjustForLeapSeconds(uint256 timestamp) private view returns (uint256 adjustedTimestamp) {
-        uint256 leapSecondsCount;
-        uint256 leapSecondsLength = leapSeconds.length;
-        for (uint256 i; i < leapSecondsLength;) {
-            if (timestamp > leapSeconds[i]) {
-                unchecked {
-                    ++leapSecondsCount;
-                }
-            } else {
-                break;
-            }
-            unchecked {
-                ++i;
-            }
-        }   
-        adjustedTimestamp = timestamp - leapSecondsCount;
-    }
-
-    /**
-     * @notice Checks if the current timestamp is the start of a new quarter
-     * @param timestamp The timestamp to check
-     * @return isQuarterStart True if it is the start of a new quarter, false otherwise
-     */
-    function _isQuarterStart(uint256 timestamp) private view returns (bool) {
-        (uint256 year, uint256 month, uint256 day, uint256 hour, uint256 minute, uint256 second, uint256 millisecond) = _timestampToDate(timestamp);
-    
-        // Check if it's the first day of a quarter month
-        bool isQuarterMonth = (month == 1 || month == 4 || month == 7 || month == 10);
-        bool isFirstDay = (day == 1);
-    
-        // leap year calls for extreme precision
-        if (isLeapYear(year)) {
-            // In leap years, we need to adjust for the extra day
-            // This is especially important for Q2 start (April 1st)
-            if (month == 4 && day == 1) {
-                // We ensure it's exactly the start of April 1st here
-                return hour == 0 && minute == 0 && second == 0 && millisecond == 0;
-            }
-        }
-    
-        // For non-leap years or other quarters in leap years
-        return isQuarterMonth && isFirstDay && hour == 0 && minute == 0 && second == 0 && millisecond == 0;
-    }
-
-    /**
-     * @notice Checks if a given year is a leap year
-     * @param year The year to check
-     * @return True if it's a leap year, false otherwise
-     */
-    function isLeapYear(uint256 year) private pure returns (bool) {
-        return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-    }
-
-    /**
-     * @notice Converts a timestamp to a date with maximum precision
-     * @param timestamp The timestamp to convert (in seconds since Unix epoch)
-     * @return year The year
-     * @return month The month (1-12)
-     * @return day The day of the month (1-31)
-     * @return hour The hour (0-23)
-     * @return minute The minute (0-59)
-     * @return second The second (0-59)
-     * @return millisecond The millisecond (0-999)
-     */
+    /// @notice Converts a timestamp to a date with maximum precision
+    /// @dev This function uses complex calculations to convert a Unix timestamp to a Gregorian date
+    /// @param timestamp The timestamp to convert (in seconds since Unix epoch)
+    /// @return year The year
+    /// @return month The month (1-12)
+    /// @return day The day of the month (1-31)
+    /// @return hour The hour (0-23)
+    /// @return minute The minute (0-59)
+    /// @return second The second (0-59)
+    /// @return millisecond The millisecond (0-999)
     function _timestampToDate(uint256 timestamp) private view returns (
         uint256 year,
         uint256 month,
@@ -1071,6 +1012,23 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         Int512 memory j = addInt512(julianDay, Int512(0, int256(32044)));
         Int512 memory g = divideInt512(j, Int512(0, int256(146097)));
         Int512 memory dg = subtractInt512(j, multiplyInt512(Int512(0, int256(146097)), g));
+
+        (year, month, day) = _calculateYearMonthDay(g, dg);
+
+        uint256 secondsOfDay = wholeSeconds % 86400;
+        hour = secondsOfDay / 3600;
+        minute = (secondsOfDay % 3600) / 60;
+        second = secondsOfDay % 60;
+    }
+
+    /// @notice Calculates the year, month, and day from Julian day components
+    /// @dev This function is a helper for _timestampToDate and uses the Julian day algorithm
+    /// @param g A component of the Julian day calculation
+    /// @param dg Another component of the Julian day calculation
+    /// @return year The calculated year
+    /// @return month The calculated month (1-12)
+    /// @return day The calculated day of the month (1-31)
+    function _calculateYearMonthDay(Int512 memory g, Int512 memory dg) private pure returns (uint256 year, uint256 month, uint256 day) {
         Int512 memory c = divideInt512(
             multiplyInt512(subtractInt512(dg, Int512(0, int256(1))), Int512(0, int256(3))),
             Int512(0, int256(4))
@@ -1097,32 +1055,47 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         year = uint256(_year.low);
         month = uint256(_month.low);
         day = uint256(_day.low);
-
-        uint256 secondsOfDay = wholeSeconds % 86400;
-        hour = secondsOfDay / 3600;
-        minute = (secondsOfDay % 3600) / 60;
-        second = secondsOfDay % 60;
     }
-    
-    // Helper functions for Int512 arithmetic
+
+    /// @notice Adds two Int512 numbers
+    /// @dev This function performs addition on two Int512 structs
+    /// @param a The first Int512 number
+    /// @param b The second Int512 number
+    /// @return The result of a + b as an Int512
     function addInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
         int256 lowSum = a.low + b.low;
         int256 highSum = a.high + b.high + (lowSum < a.low ? int256(1) : int256(0));
         return Int512(highSum, lowSum);
     }
 
+    /// @notice Subtracts one Int512 number from another
+    /// @dev This function performs subtraction on two Int512 structs
+    /// @param a The Int512 number to subtract from
+    /// @param b The Int512 number to subtract
+    /// @return The result of a - b as an Int512
     function subtractInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
         int256 lowDiff = a.low - b.low;
         int256 highDiff = a.high - b.high - (lowDiff > a.low ? int256(1) : int256(0));
         return Int512(highDiff, lowDiff);
     }
 
+    /// @notice Multiplies two Int512 numbers
+    /// @dev This function performs multiplication on two Int512 structs
+    /// @param a The first Int512 number
+    /// @param b The second Int512 number
+    /// @return The result of a * b as an Int512
     function multiplyInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
         int256 low = a.low * b.low;
         int256 high = a.high * b.low + a.low * b.high + ((a.low >> 128) * (b.low >> 128));
         return Int512(high, low);
     }
 
+    /// @notice Divides one Int512 number by another
+    /// @dev This function performs division on two Int512 structs
+    /// @param a The Int512 number to be divided
+    /// @param b The Int512 number to divide by
+    /// @return The result of a / b as an Int512
+    /// @custom:throws DivisionByZero if b is zero
     function divideInt512(Int512 memory a, Int512 memory b) private pure returns (Int512 memory) {
         if (b.high == 0 && b.low == 0) revert DivisionByZero();
         int256 aAbs = a.high < 0 ? -a.high : a.high;
@@ -1130,6 +1103,62 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         int256 quot = (aAbs << 128 | (a.low < 0 ? -a.low : a.low)) / (bAbs << 128 | (b.low < 0 ? -b.low : b.low));
         bool negative = (a.high < 0) != (b.high < 0);
         return Int512(negative ? -int256(uint256(quot) >> 128) : int256(uint256(quot) >> 128), negative ? -int256(uint256(quot) & ((1 << 128) - 1)) : int256(uint256(quot) & ((1 << 128) - 1)));
+    }
+
+    /// @notice Adjusts a timestamp for leap seconds
+    /// @dev This function subtracts the number of leap seconds that have occurred before the given timestamp
+    /// @param timestamp The timestamp to adjust
+    /// @return adjustedTimestamp The timestamp adjusted for leap seconds
+    function adjustForLeapSeconds(uint256 timestamp) private view returns (uint256 adjustedTimestamp) {
+        uint256 leapSecondsCount;
+        uint256 leapSecondsLength = leapSeconds.length;
+        for (uint256 i; i < leapSecondsLength;) {
+            if (timestamp > leapSeconds[i]) {
+                unchecked {
+                    ++leapSecondsCount;
+                }
+            } else {
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }   
+        adjustedTimestamp = timestamp - leapSecondsCount;
+    }
+
+    /// @notice Checks if the current timestamp is the start of a new quarter
+    /// @dev This function determines if a given timestamp is exactly at the start of a financial quarter
+    /// @param timestamp The timestamp to check
+    /// @return isQuarterStart True if it is the start of a new quarter, false otherwise
+    function _isQuarterStart(uint256 timestamp) private view returns (bool isQuarterStart) {
+        (uint256 year, uint256 month, uint256 day, uint256 hour, uint256 minute, uint256 second, uint256 millisecond) = _timestampToDate(timestamp);
+
+        // Check if it's the first day of a quarter month
+        bool isQuarterMonth = (month == 1 || month == 4 || month == 7 || month == 10);
+        bool isFirstDay = (day == 1);
+
+        // leap year calls for extreme precision
+        if (isLeapYear(year)) {
+            // In leap years, we need to adjust for the extra day
+            // This is especially important for Q2 start (April 1st)
+            if (month == 4 && day == 1) {
+                // We ensure it's exactly the start of April 1st here
+                isQuarterStart = hour == 0 && minute == 0 && second == 0 && millisecond == 0;
+                return isQuarterStart;
+            }
+        }
+
+        // For non-leap years or other quarters in leap years
+        isQuarterStart = isQuarterMonth && isFirstDay && hour == 0 && minute == 0 && second == 0 && millisecond == 0;
+    }
+
+    /// @notice Checks if a given year is a leap year
+    /// @dev This function uses the standard leap year calculation rules
+    /// @param year The year to check
+    /// @return True if it's a leap year, false otherwise
+    function isLeapYear(uint256 year) private pure returns (bool) {
+        return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
     }
 
     /**
@@ -1212,6 +1241,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function getReward(address stakerAddress) external view returns (uint256 reward) {
         reward = _stakeRewards[stakerAddress];
     }
+
 
     /**
      * @notice Handles normal buy and sell transactions with tax and burn
