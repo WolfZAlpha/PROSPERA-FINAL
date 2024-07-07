@@ -783,9 +783,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
      */
     function _vestedAmount(address account) private view returns (uint256 vestedAmount) {
         Vesting memory vesting = vestingSchedules[account];
-        if (!vesting.active || block.timestamp < vesting.startTime) return 0;
-        if (block.timestamp >= vesting.endTime) return vesting.totalAmount;
-        vestedAmount = (vesting.totalAmount * (block.timestamp - vesting.startTime)) / (vesting.endTime - vesting.startTime);
+        if (!vesting.active || block.timestamp < vesting.startTime) {
+            vestedAmount = 0;
+        } else if (block.timestamp >= vesting.endTime) {
+            vestedAmount = vesting.totalAmount;
+        } else {
+            vestedAmount = (vesting.totalAmount * (block.timestamp - vesting.startTime)) / (vesting.endTime - vesting.startTime);
+        }
     }
 
     /**
