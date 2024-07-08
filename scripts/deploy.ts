@@ -4,7 +4,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 async function main() {
-  // Define the addresses to be used
+  // Defines the addresses to be used
   const usdcTokenAddress = "0x22760ae19110018b44337521A41F648e025AcDc4"; // USDC token address on Arbitrum One
   const gnosisSafeWallet = process.env.GNOSIS_SAFE_ADDRESS as string; // Gnosis Safe multi-sig wallet
   const taxWallet = "0x233AF064cc70D2d575fD8824B3682948dA3aB94F"; // Tax Wallet Address
@@ -19,11 +19,14 @@ async function main() {
   const devWallet = "0xd0eecB3E6ba57E5b15051882A19413732809c872"; // Dev wallet address
   const prosicoWallet = "0x1234567890123456789012345678901234567890"; // Replace with actual prosico wallet address
 
-  // Define the vesting wallets and types (0 for marketing, 1 for team)
+  // Defines the vesting wallets and types (0 for marketing, 1 for team)
   const vestingWallets = [
     { address: "0xb6b6E3a54BCAF861ac456b38D15389dC8E638450", vestingType: 0 }, // mi1
     { address: "0x0fcD04410E6DA9339c1578C9f7aC1e48AED4B73C", vestingType: 0 }, // bns
     { address: "0x156841B0541F11522656A8FA6d0542B737754E8e", vestingType: 0 }, // Mch
+    { address: "0x87715D8cC9F32e694CB644fce3b86F4C7311aD15", vestingType: 0 }, // gt
+    { address: "0x4c6A8Ff3bADe54BCFf3c63Aa84Cb8985c68F0A30", vestingType: 0 }, // linx
+    { address: "0x3bda56ef07bf6f996f8e3defddde6c8109b7e7be", vestingType: 0 }, // goul
     { address: "0xB50516982524DFF3d8d563F46AD54891Aa61944E", vestingType: 1 }, // fl
     { address: "0x89D6a038D902fEAb8c506C3F392b1B91CA8461B7", vestingType: 1 }, // 7w
     { address: "0x810999FAAe498DCb4e46736c6f901DDCd51D3a01", vestingType: 1 }, // z
