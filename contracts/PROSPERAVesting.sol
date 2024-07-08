@@ -15,7 +15,7 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Address of the PROSPERA token contract
     address public prosperaToken;
 
-    /// @notice Struct to define a vesting schedule
+    /// @notice Struct to define the vesting schedule
     /// @param startTime The start time of the vesting period
     /// @param endTime The end time of the vesting period
     /// @param active Whether the vesting schedule is active
@@ -35,7 +35,7 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     mapping(address user => Vesting vestingInfo) public vestingSchedules;
 
     // Events
-    /// @notice Emitted when a vesting schedule is added
+    /// @notice Emitted when a wallet is added to the vesting schedule
     /// @param user The address of the user for whom the vesting schedule is added
     /// @param startTime The start time of the vesting period
     /// @param endTime The end time of the vesting period
@@ -57,6 +57,11 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @param active Whether the vesting schedule is active
     /// @param releasedAmount The total amount of tokens released so far
     event VestingUpdated(address indexed user, bool active, uint256 releasedAmount);
+
+    /// @notice Emitted when a new vesting schedule is created for an account
+    /// @param account The address of the account for which the vesting schedule is created
+    /// @param vestingInfo The complete vesting schedule information
+    event VestingScheduleCreated(address indexed account, Vesting vestingInfo);
 
     // Errors
     /// @notice Error for vesting not being active
@@ -127,7 +132,7 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             revert InvalidVestingType();
         }
 
-        vestingSchedules[account] = Vesting({
+        Vesting memory newVesting = Vesting({
             startTime: startTime,
             endTime: endTime,
             active: true,
@@ -136,6 +141,9 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             releasedAmount: 0
         });
 
+        vestingSchedules[account] = newVesting;
+
+        emit VestingScheduleCreated(account, newVesting);
         emit VestingAdded(account, startTime, endTime, amount, vestingType);
         emit VestingUpdated(account, true, 0);
 
