@@ -17,6 +17,7 @@ async function main() {
   const marketingWallet = "0xc0645D8968599A9C8908813174828aca4e9187cE"; // Marketing wallet address
   const teamWallet = "0x891e4ce655ea6080266b43B7aDc4878af9500353"; // Team wallet address
   const devWallet = "0xd0eecB3E6ba57E5b15051882A19413732809c872"; // Dev wallet address
+  const prosicoWallet = "0x1234567890123456789012345678901234567890"; // Replace with actual prosico wallet address
 
   // Define the vesting wallets and types (0 for marketing, 1 for team)
   const vestingWallets = [
@@ -30,58 +31,114 @@ async function main() {
 
   console.log("Deploying contracts with the Gnosis Safe as the deployer...");
 
-  const ContractFactory = await ethers.getContractFactory("Prospera");
+  // Deploy PROSPERAMath
+  const MathFactory = await ethers.getContractFactory("PROSPERAMath");
+  const mathDeployment = await defender.deployProxy(MathFactory, [], {
+    initializer: "initialize",
+    redeployImplementation: "always",
+  });
+  await mathDeployment.waitForDeployment();
+  const mathAddress = await mathDeployment.getAddress();
+  console.log(`PROSPERAMath deployed to ${mathAddress}`);
 
-  // Fetch the default approval process from Defender
-  const upgradeApprovalProcess = await defender.getUpgradeApprovalProcess();
+  // Deploy PROSPERAStaking
+  const StakingFactory = await ethers.getContractFactory("PROSPERAStaking");
+  const stakingDeployment = await defender.deployProxy(StakingFactory, [], {
+    initializer: "initialize",
+    redeployImplementation: "always",
+  });
+  await stakingDeployment.waitForDeployment();
+  const stakingAddress = await stakingDeployment.getAddress();
+  console.log(`PROSPERAStaking deployed to ${stakingAddress}`);
 
-  if (upgradeApprovalProcess.address === undefined) {
-    throw new Error(`Upgrade approval process with id ${upgradeApprovalProcess.approvalProcessId} has no assigned address`);
-  }
+  // Deploy PROSPERAICO
+  const ICOFactory = await ethers.getContractFactory("PROSPERAICO");
+  const icoDeployment = await defender.deployProxy(ICOFactory, [], {
+    initializer: "initialize",
+    redeployImplementation: "always",
+  });
+  await icoDeployment.waitForDeployment();
+  const icoAddress = await icoDeployment.getAddress();
+  console.log(`PROSPERAICO deployed to ${icoAddress}`);
 
-  // Deploy the proxy contract using Defender
-  const deployment = await defender.deployProxy(
-    ContractFactory,
-    [
-      usdcTokenAddress,
-      gnosisSafeWallet,
-      taxWallet,
-      stakingWallet,
-      icoWallet,
-      liquidityWallet,
-      farmingWallet,
-      listingWallet,
-      reserveWallet,
-      marketingWallet,
-      teamWallet,
-      devWallet
-    ],
+  // Deploy PROSPERAVesting
+  const VestingFactory = await ethers.getContractFactory("PROSPERAVesting");
+  const vestingDeployment = await defender.deployProxy(VestingFactory, [], {
+    initializer: "initialize",
+    redeployImplementation: "always",
+  });
+  await vestingDeployment.waitForDeployment();
+  const vestingAddress = await vestingDeployment.getAddress();
+  console.log(`PROSPERAVesting deployed to ${vestingAddress}`);
+
+  // Deploy main PROSPERA contract
+  const PROSPERAFactory = await ethers.getContractFactory("PROSPERA");
+  const prosperaDeployment = await defender.deployProxy(
+    PROSPERAFactory,
+    [{
+      deployerWallet: gnosisSafeWallet,
+      usdcToken: usdcTokenAddress,
+      taxWallet: taxWallet,
+      stakingWallet: stakingWallet,
+      icoWallet: icoWallet,
+      prosicoWallet: prosicoWallet,
+      liquidityWallet: liquidityWallet,
+      farmingWallet: farmingWallet,
+      listingWallet: listingWallet,
+      reserveWallet: reserveWallet,
+      marketingWallet: marketingWallet,
+      teamWallet: teamWallet,
+      devWallet: devWallet,
+      stakingContract: stakingAddress,
+      vestingContract: vestingAddress,
+      icoContract: icoAddress,
+      mathContract: mathAddress
+    }],
     {
       initializer: "initialize",
       redeployImplementation: "always",
     }
   );
 
-  await deployment.waitForDeployment();
+  await prosperaDeployment.waitForDeployment();
+  const prosperaAddress = await prosperaDeployment.getAddress();
+  console.log(`PROSPERA main contract deployed to ${prosperaAddress}`);
 
-  const deployedAddress = await deployment.getAddress();
-  console.log(`Proxy deployed to ${deployedAddress}`);
+  // Get the deployed contract instances
+  const prospera = await ethers.getContractAt("PROSPERA", prosperaAddress);
+  const prosperaVesting = await ethers.getContractAt("PROSPERAVesting", vestingAddress);
 
-  // Get the deployed contract instance
-  const prospera = await ethers.getContractAt("Prospera", deployedAddress);
+  // Initialize child contracts with PROSPERA address
+  const mathContract = await ethers.getContractAt("PROSPERAMath", mathAddress);
+  await mathContract.initialize(prosperaAddress);
+  console.log("PROSPERAMath initialized");
+
+  const stakingContract = await ethers.getContractAt("PROSPERAStaking", stakingAddress);
+  await stakingContract.initialize(prosperaAddress);
+  console.log("PROSPERAStaking initialized");
+
+  const icoContract = await ethers.getContractAt("PROSPERAICO", icoAddress);
+  await icoContract.initialize(prosperaAddress, icoWallet, prosicoWallet);
+  console.log("PROSPERAICO initialized");
+
+  await prosperaVesting.initialize(prosperaAddress);
+  console.log("PROSPERAVesting initialized");
 
   // Add vesting wallets with their respective types
   for (const wallet of vestingWallets) {
-    const tx = await prospera.addToVesting(wallet.address, wallet.vestingType);
+    const tx = await prospera.addToVesting(wallet.address, 0, wallet.vestingType);
     await tx.wait();
     console.log(`Added ${wallet.address} to vesting schedule with type ${wallet.vestingType}`);
   }
 
-  // Transfer ownership to the Gnosis Safe wallet (if not already set)
-  if ((await prospera.owner()) !== gnosisSafeWallet) {
-    const transferTx = await prospera.transferOwnership(gnosisSafeWallet);
-    await transferTx.wait();
-    console.log(`Ownership transferred to Gnosis Safe wallet: ${gnosisSafeWallet}`);
+  // Transfer ownership of all contracts to the Gnosis Safe wallet
+  const contracts = [prospera, mathContract, stakingContract, icoContract, prosperaVesting];
+  for (const contract of contracts) {
+    if ((await contract.owner()) !== gnosisSafeWallet) {
+      const transferTx = await contract.transferOwnership(gnosisSafeWallet);
+      await transferTx.wait();
+      console.log(`Ownership of ${await contract.getAddress()} transferred to Gnosis Safe wallet: ${gnosisSafeWallet}`);
+    }
   }
 }
 
