@@ -36,10 +36,27 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
     // Events
     /// @notice Emitted when a vesting schedule is added
+    /// @param user The address of the user for whom the vesting schedule is added
+    /// @param startTime The start time of the vesting period
+    /// @param endTime The end time of the vesting period
+    /// @param amount The total amount of tokens to be vested
+    /// @param vestingType The type of vesting schedule
     event VestingAdded(address indexed user, uint256 startTime, uint256 endTime, uint256 amount, uint8 vestingType);
 
     /// @notice Emitted when vested tokens are released
+    /// @param user The address of the user for whom tokens are released
+    /// @param amount The amount of tokens released
     event VestingReleased(address indexed user, uint256 amount);
+
+    /// @notice Emitted when the contract is initialized
+    /// @param prosperaToken The address of the PROSPERA token contract
+    event VestingInitialized(address indexed prosperaToken);
+
+    /// @notice Emitted when a vesting schedule is updated
+    /// @param user The address of the user whose vesting schedule is updated
+    /// @param active Whether the vesting schedule is active
+    /// @param releasedAmount The total amount of tokens released so far
+    event VestingUpdated(address indexed user, bool active, uint256 releasedAmount);
 
     // Errors
     /// @notice Error for vesting not being active
@@ -74,10 +91,9 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         _disableInitializers();
     }
 
-    /**
-     * @notice Initializes the contract
-     * @param _prosperaToken Address of the PROSPERA token contract
-     */
+    /// @notice Initializes the contract
+    /// @dev This function is called once by the deployer to set up the contract
+    /// @param _prosperaToken Address of the PROSPERA token contract
     function initialize(address _prosperaToken) initializer public {
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
@@ -85,23 +101,21 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
         if (_prosperaToken == address(0)) revert InvalidAddress();
         prosperaToken = _prosperaToken;
+
+        emit VestingInitialized(_prosperaToken);
     }
 
-    /**
-     * @notice Authorizes an upgrade to a new implementation
-     * @dev This function is left empty but is required by the UUPSUpgradeable contract
-     * @param newImplementation Address of the new implementation
-     */
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev This function is left empty but is required by the UUPSUpgradeable contract
+    /// @param newImplementation Address of the new implementation
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /**
-     * @notice Adds an address to the vesting schedule
-     * @dev Can only be called by the PROSPERA contract
-     * @param account The address to be added to the vesting schedule
-     * @param amount The amount of tokens to be vested
-     * @param vestingType The type of vesting schedule (0 for marketing team, 1 for PROSPERA team)
-     * @return success True if the address was successfully added to the vesting schedule
-     */
+    /// @notice Adds an address to the vesting schedule
+    /// @dev Can only be called by the PROSPERA contract
+    /// @param account The address to be added to the vesting schedule
+    /// @param amount The amount of tokens to be vested
+    /// @param vestingType The type of vesting schedule (0 for marketing team, 1 for PROSPERA team)
+    /// @return success True if the address was successfully added to the vesting schedule
     function addToVesting(address account, uint256 amount, uint8 vestingType) external onlyPROSPERA nonReentrant returns (bool success) {
         if (account == address(0)) revert InvalidAddress();
 
@@ -126,33 +140,30 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         });
 
         emit VestingAdded(account, startTime, endTime, amount, vestingType);
+        emit VestingUpdated(account, true, 0);
 
-        success = true;
+        return true;
     }
 
-    /**
-     * @notice Calculates the vested amount for a given account
-     * @param account The address for which to calculate the vested amount
-     * @return vestedAmount The amount of tokens that have vested for the given account
-     */
+    /// @notice Calculates the vested amount for a given account
+    /// @dev This is an internal function used by other functions in the contract
+    /// @param account The address for which to calculate the vested amount
+    /// @return vestedAmount The amount of tokens that have vested for the given account
     function _vestedAmount(address account) private view returns (uint256 vestedAmount) {
         Vesting memory vesting = vestingSchedules[account];
         if (!vesting.active || block.timestamp < vesting.startTime) {
-            vestedAmount = 0;
+            return 0;
         } else if (block.timestamp >= vesting.endTime) {
-            vestedAmount = vesting.totalAmount;
+            return vesting.totalAmount - vesting.releasedAmount;
         } else {
-            vestedAmount = (vesting.totalAmount * (block.timestamp - vesting.startTime)) / (vesting.endTime - vesting.startTime);
+            return (vesting.totalAmount * (block.timestamp - vesting.startTime)) / (vesting.endTime - vesting.startTime) - vesting.releasedAmount;
         }
-        vestedAmount = vestedAmount - vesting.releasedAmount;
     }
 
-    /**
-     * @notice Releases vested tokens for an address
-     * @dev Can only be called by the PROSPERA contract
-     * @param account The address to release tokens for
-     * @return amountToRelease The amount of tokens released
-    */
+    /// @notice Releases vested tokens for an address
+    /// @dev Can only be called by the PROSPERA contract
+    /// @param account The address to release tokens for
+    /// @return amountToRelease The amount of tokens released
     function releaseVestedTokens(address account) external onlyPROSPERA nonReentrant returns (uint256 amountToRelease) {
         Vesting storage vesting = vestingSchedules[account];
         if (!vesting.active) revert VestingNotActive();
@@ -161,33 +172,35 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         if (amountToRelease == 0) revert NoTokensToRelease();
 
         vesting.releasedAmount += amountToRelease;
-        if (vesting.releasedAmount >= vesting.totalAmount) {
-            vesting.active = false;
-        }
+        bool stillActive = vesting.releasedAmount < vesting.totalAmount;
+        vesting.active = stillActive;
 
         emit VestingReleased(account, amountToRelease);
+        emit VestingUpdated(account, stillActive, vesting.releasedAmount);
+
+        return amountToRelease;
     }
 
-    /**
-     * @notice Checks if a token transfer is allowed based on vesting schedule
-     * @param account The address to check
-     * @return isVested True if the tokens are vested and can be transferred, false otherwise
-     */
+    /// @notice Checks if a token transfer is allowed based on vesting schedule
+    /// @dev This function will revert if the tokens are still vesting
+    /// @param account The address to check
+    /// @return isVested True if the tokens are vested and can be transferred, false otherwise
     function isVestedTokenTransfer(address account) external view returns (bool isVested) {
         Vesting memory vesting = vestingSchedules[account];
-        isVested = !vesting.active || block.timestamp >= vesting.endTime;
+        if (vesting.active && block.timestamp < vesting.endTime) {
+            revert VestedTokensCannotBeTransferred();
+        }
+        return !vesting.active || block.timestamp >= vesting.endTime;
     }
 
-    /**
-     * @notice Gets the vesting schedule for a given account
-     * @param account The address to check
-     * @return startTime The start time of the vesting schedule
-     * @return endTime The end time of the vesting schedule
-     * @return active Whether the vesting schedule is active
-     * @return vestingType The type of vesting schedule
-     * @return totalAmount The total amount of tokens to be vested
-     * @return releasedAmount The amount of tokens already released
-     */
+    /// @notice Gets the vesting schedule for a given account
+    /// @param account The address to check
+    /// @return startTime The start time of the vesting schedule
+    /// @return endTime The end time of the vesting schedule
+    /// @return active Whether the vesting schedule is active
+    /// @return vestingType The type of vesting schedule
+    /// @return totalAmount The total amount of tokens to be vested
+    /// @return releasedAmount The amount of tokens already released
     function getVestingSchedule(address account) external view returns (
         uint256 startTime,
         uint256 endTime,
@@ -207,12 +220,10 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         );
     }
 
-    /**
-     * @notice Calculates the current vested amount for a given account
-     * @param account The address to check
-     * @return vestedAmount The current vested amount
-     */
+    /// @notice Calculates the current vested amount for a given account
+    /// @param account The address to check
+    /// @return vestedAmount The current vested amount
     function getCurrentVestedAmount(address account) external view returns (uint256 vestedAmount) {
-        vestedAmount = _vestedAmount(account);
+        return _vestedAmount(account);
     }
 }
