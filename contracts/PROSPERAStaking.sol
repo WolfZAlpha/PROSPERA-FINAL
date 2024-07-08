@@ -33,19 +33,19 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     bool public isStakingEnabled;
 
     /// @notice Mapping of staker details
-    mapping(address => Stake) private _stakes;
+    mapping(address staker => Stake stakeInfo) private _stakes;
 
     /// @notice Mapping of rewards for stakers
-    mapping(address => uint256) private _stakeRewards;
+    mapping(address staker => uint256 rewardAmount) private _stakeRewards;
 
     /// @notice Tracks if a staker is eligible for quarterly revenue share
-    mapping(address => bool) public quarterlyEligible;
+    mapping(address staker => bool isEligible) public quarterlyEligible;
 
     /// @notice Tracks the number of active stakers in each tier
-    mapping(uint8 => uint256) public activeStakers;
+    mapping(uint8 tier => uint256 stakerCount) public activeStakers;
 
     /// @notice Tracks addresses of stakers in each tier
-    mapping(uint8 => address[]) private stakersInTier;
+    mapping(uint8 tier => address[] stakerAddresses) private stakersInTier;
 
     /// @notice Daily reward interval
     uint256 public constant REWARD_INTERVAL = 1 days;
@@ -61,6 +61,9 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice Tier limits
     uint256[TIER_COUNT] public tierLimits = [57143, 200000, 500000, 1500000, 10000000, 50000000];
+
+    /// @notice Multiplier in basis points for each tier
+    uint8[TIER_COUNT] public tierBonuses = [50, 50, 150, 175, 100, 125, 175];
 
     /// @notice List of cases for staking rewards
     Case[4] public cases;
@@ -93,16 +96,19 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     event RewardUpdated(address indexed user, uint256 reward);
 
     /// @notice Emitted when the contract is initialized
-    event StakingInitialized(address prosperaContract);
+    event StakingInitialized(address indexed prosperaContract);
 
     /// @notice Emitted when a staker is added to a tier
-    event StakerAddedToTier(address indexed staker, uint8 tier);
+    event StakerAddedToTier(address indexed staker, uint8 indexed tier);
 
     /// @notice Emitted when a staker is removed from a tier
-    event StakerRemovedFromTier(address indexed staker, uint8 tier);
+    event StakerRemovedFromTier(address indexed staker, uint8 indexed tier);
 
     /// @notice Emitted when the number of active stakers in a tier is updated
-    event ActiveStakersUpdated(uint8 tier, uint256 count);
+    event ActiveStakersUpdated(uint8 indexed tier, uint256 count);
+
+    /// @notice Emitted when a case is initialized
+    event CaseInitialized(uint8 indexed caseIndex, uint256 maxWallets);
 
     /// @notice Error for when the caller is not the PROSPERA contract
     error NotPROSPERAContract();
@@ -121,6 +127,15 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice Error for when tokens are still locked
     error TokensStillLocked();
+
+    /// @notice Error for invalid tier
+    error InvalidTier(uint8 tier);
+
+    /// @notice Error for invalid index range
+    error InvalidIndexRange();
+
+    /// @notice Error for end index out of bounds
+    error EndIndexOutOfBounds();
 
     /// @notice Ensures that only the PROSPERA contract can call the function
     modifier onlyPROSPERA() {
@@ -143,31 +158,26 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
         prosperaContract = _prosperaContract;
 
-        cases[0] = Case({
-            maxWallets: 1500,
-            maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]
-        });
-
-        cases[1] = Case({
-            maxWallets: 3000,
-            maxWalletsPerTier: [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15],
-            dailyYieldPercentage: [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)]
-        });
-
-        cases[2] = Case({
-            maxWallets: 10000,
-            maxWalletsPerTier: [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50],
-            dailyYieldPercentage: [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)]
-        });
-
-        cases[3] = Case({
-            maxWallets: 20000,
-            maxWalletsPerTier: [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100],
-            dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]
-        });
+        _initializeCase(0, 1500, [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8], [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]);
+        _initializeCase(1, 3000, [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15], [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)]);
+        _initializeCase(2, 10000, [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50], [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)]);
+        _initializeCase(3, 20000, [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100], [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]);
 
         emit StakingInitialized(_prosperaContract);
+    }
+
+    /// @notice Initializes a case for staking rewards
+    /// @param caseIndex The index of the case
+    /// @param maxWallets The maximum number of wallets for the case
+    /// @param maxWalletsPerTier The maximum number of wallets per tier
+    /// @param dailyYieldPercentage The daily yield percentage for each tier
+    function _initializeCase(uint8 caseIndex, uint256 maxWallets, uint256[7] memory maxWalletsPerTier, uint256[7] memory dailyYieldPercentage) private {
+        cases[caseIndex] = Case({
+            maxWallets: maxWallets,
+            maxWalletsPerTier: maxWalletsPerTier,
+            dailyYieldPercentage: dailyYieldPercentage
+        });
+        emit CaseInitialized(caseIndex, maxWallets);
     }
 
     /// @notice Authorizes an upgrade to a new implementation
@@ -285,7 +295,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice Updates the reward for a staker based on the current case and tier
     /// @param stakerAddress The address of the staker
-    function _updateReward(address stakerAddress) private {
+function _updateReward(address stakerAddress) private {
         uint256 stakedDuration = (block.timestamp - _stakes[stakerAddress].timestamp) / REWARD_INTERVAL;
         uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0;
         uint256 calculatedReward;
@@ -413,7 +423,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return tier The tier number
     /// @return lockedUp Whether the stake is locked up
     /// @return lockupDuration The duration of the lockup
-    function getStake(address stakerAddress) external view returns (uint256, uint256, uint8, bool, uint256) {
+    function getStake(address stakerAddress) external view returns (uint256 amount, uint256 timestamp, uint8 tier, bool lockedUp, uint256 lockupDuration) {
         Stake memory stakeInfo = _stakes[stakerAddress];
         return (stakeInfo.amount, stakeInfo.timestamp, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
@@ -428,8 +438,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Returns the current case and total number of stakers
     /// @return currentCaseNumber The current case number
     /// @return totalStakers The total number of stakers across all tiers
-    function getCurrentCaseAndTotalStakers() external view returns (uint8, uint256) {
-        uint256 totalStakers;
+    function getCurrentCaseAndTotalStakers() external view returns (uint8 currentCaseNumber, uint256 totalStakers) {
         for (uint8 i; i < TIER_COUNT; ++i) {
             totalStakers += activeStakers[i];
         }
@@ -440,7 +449,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @param tier The tier number
     /// @return The number of stakers in the tier
     function getTotalStakersInTier(uint8 tier) external view returns (uint256) {
-        require(tier < TIER_COUNT, "Invalid tier");
+        if (tier >= TIER_COUNT) revert InvalidTier(tier);
         return stakersInTier[tier].length;
     }
 
@@ -450,9 +459,9 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @param endIndex The ending index of the range
     /// @return An array of staker addresses in the specified range
     function getStakersInTier(uint8 tier, uint256 startIndex, uint256 endIndex) external view returns (address[] memory) {
-        require(tier < TIER_COUNT, "Invalid tier");
-        require(startIndex < endIndex, "Invalid index range");
-        require(endIndex <= stakersInTier[tier].length, "End index out of bounds");
+        if (tier >= TIER_COUNT) revert InvalidTier(tier);
+        if (startIndex >= endIndex) revert InvalidIndexRange();
+        if (endIndex > stakersInTier[tier].length) revert EndIndexOutOfBounds();
 
         address[] memory stakers = new address[](endIndex - startIndex);
         for (uint256 i = startIndex; i < endIndex; ++i) {
@@ -466,7 +475,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @param tier The tier number
     /// @return Whether the staker is in the specified tier
     function isStakerInTier(address staker, uint8 tier) external view returns (bool) {
-        require(tier < TIER_COUNT, "Invalid tier");
+        if (tier >= TIER_COUNT) revert InvalidTier(tier);
         return _stakes[staker].tier == tier;
     }
 }
