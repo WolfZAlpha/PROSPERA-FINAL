@@ -31,6 +31,11 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @notice Leap second table (Unix timestamps of leap seconds)
     uint256[] private leapSeconds;
 
+    /// @notice Emitted when the contract is initialized
+    /// @param prosperaContract The address of the PROSPERA contract
+    /// @param leapSecondsCount The number of leap seconds initialized
+    event MathContractInitialized(address indexed prosperaContract, uint256 leapSecondsCount);
+
     // Errors
     error NotProsperaContract();
     error DivisionByZero();
@@ -61,6 +66,8 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
             362793600, 394329600, 425865600, 489024000, 567993600, 631152000, 662688000, 709948800, 741484800,
             773020800, 820454400, 867715200, 915148800, 1136073600, 1230768000, 1341100800, 1435708800, 1483228800
         ];
+
+        emit MathContractInitialized(_prosperaContract, leapSeconds.length);
     }
 
     /// @notice Authorizes an upgrade to a new implementation
@@ -117,7 +124,11 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @return year The calculated year
     /// @return month The calculated month (1-12)
     /// @return day The calculated day of the month (1-31)
-    function calculateYearMonthDay(Int512 memory g, Int512 memory dg) public pure returns (uint256 year, uint256 month, uint256 day) {
+    function calculateYearMonthDay(Int512 memory g, Int512 memory dg) public pure returns (
+        uint256 year,
+        uint256 month,
+        uint256 day
+    ) {
         Int512 memory c = divideInt512(
             multiplyInt512(subtractInt512(dg, Int512(0, int256(1))), Int512(0, int256(3))),
             Int512(0, int256(4))
@@ -149,44 +160,44 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @notice Adds two Int512 numbers
     /// @param a The first Int512 number
     /// @param b The second Int512 number
-    /// @return The result of a + b as an Int512
-    function addInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory) {
+    /// @return result The result of a + b as an Int512
+    function addInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory result) {
         int256 lowSum = a.low + b.low;
         int256 highSum = a.high + b.high + (lowSum < a.low ? int256(1) : int256(0));
-        return Int512(highSum, lowSum);
+        result = Int512(highSum, lowSum);
     }
 
     /// @notice Subtracts one Int512 number from another
     /// @param a The Int512 number to subtract from
     /// @param b The Int512 number to subtract
-    /// @return The result of a - b as an Int512
-    function subtractInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory) {
+    /// @return result The result of a - b as an Int512
+    function subtractInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory result) {
         int256 lowDiff = a.low - b.low;
         int256 highDiff = a.high - b.high - (lowDiff > a.low ? int256(1) : int256(0));
-        return Int512(highDiff, lowDiff);
+        result = Int512(highDiff, lowDiff);
     }
 
     /// @notice Multiplies two Int512 numbers
     /// @param a The first Int512 number
     /// @param b The second Int512 number
-    /// @return The result of a * b as an Int512
-    function multiplyInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory) {
+    /// @return result The result of a * b as an Int512
+    function multiplyInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory result) {
         int256 low = a.low * b.low;
         int256 high = a.high * b.low + a.low * b.high + ((a.low >> 128) * (b.low >> 128));
-        return Int512(high, low);
+        result = Int512(high, low);
     }
 
     /// @notice Divides one Int512 number by another
     /// @param a The Int512 number to be divided
     /// @param b The Int512 number to divide by
-    /// @return The result of a / b as an Int512
-    function divideInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory) {
+    /// @return result The result of a / b as an Int512
+    function divideInt512(Int512 memory a, Int512 memory b) public pure returns (Int512 memory result) {
         if (b.high == 0 && b.low == 0) revert DivisionByZero();
         int256 aAbs = a.high < 0 ? -a.high : a.high;
         int256 bAbs = b.high < 0 ? -b.high : b.high;
         int256 quot = (aAbs << 128 | (a.low < 0 ? -a.low : a.low)) / (bAbs << 128 | (b.low < 0 ? -b.low : b.low));
         bool negative = (a.high < 0) != (b.high < 0);
-        return Int512(negative ? -int256(uint256(quot) >> 128) : int256(uint256(quot) >> 128), negative ? -int256(uint256(quot) & ((1 << 128) - 1)) : int256(uint256(quot) & ((1 << 128) - 1)));
+        result = Int512(negative ? -int256(uint256(quot) >> 128) : int256(uint256(quot) >> 128), negative ? -int256(uint256(quot) & ((1 << 128) - 1)) : int256(uint256(quot) & ((1 << 128) - 1)));
     }
 
     /// @notice Adjusts a timestamp for leap seconds
@@ -221,8 +232,7 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         if (isLeapYear(year)) {
             if (month == 4 && day == 1) {
-                quarterStart = hour == 0 && minute == 0 && second == 0 && millisecond == 0;
-                return quarterStart;
+                return hour == 0 && minute == 0 && second == 0 && millisecond == 0;
             }
         }
 
@@ -231,8 +241,8 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
     /// @notice Checks if a given year is a leap year
     /// @param year The year to check
-    /// @return True if it's a leap year, false otherwise
-    function isLeapYear(uint256 year) public pure returns (bool) {
-        return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+    /// @return isLeap True if it's a leap year, false otherwise
+    function isLeapYear(uint256 year) public pure returns (bool isLeap) {
+        isLeap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
     }
 }
