@@ -161,31 +161,22 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
         prosperaContract = _prosperaContract;
 
-        cases[0] = Case({
-            maxWallets: 1500,
-            maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
-            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]
-        });
-
-        cases[1] = Case({
-            maxWallets: 3000,
-            maxWalletsPerTier: [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15],
-            dailyYieldPercentage: [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)]
-        });
-
-        cases[2] = Case({
-            maxWallets: 10000,
-            maxWalletsPerTier: [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50],
-            dailyYieldPercentage: [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)]
-        });
-
-        cases[3] = Case({
-            maxWallets: 20000,
-            maxWalletsPerTier: [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100],
-            dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]
-        });
-
         for (uint8 i; i < 4; ++i) {
+            cases[i] = Case({
+                maxWallets: [1500, 3000, 10000, 20000][i],
+                maxWalletsPerTier: [
+                    [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
+                    [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15],
+                    [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50],
+                    [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100]
+                ][i],
+                dailyYieldPercentage: [
+                    [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)],
+                    [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)],
+                    [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)],
+                    [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]
+                ][i]
+            });
             emit CaseInitialized(i, cases[i].maxWallets);
         }
 
@@ -230,7 +221,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             lockedUp: isLockedUp,
             lockupDuration: lockDuration
         });
-        
+    
         uint256 newActiveStakers = ++activeStakers[tier];
         emit ActiveStakersUpdated(tier, newActiveStakers);
 
@@ -271,7 +262,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
         emit Unstaked(staker, unstakeAmount, reward);
         emit StakeUpdated(staker, stakeInfo.amount, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
-        
+    
         return amountToTransfer;
     }
 
@@ -294,7 +285,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         emit StakeUpdated(staker, stakeInfo.amount, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
 
-/// @notice Takes a snapshot to determine eligibility for quarterly revenue share
+    /// @notice Takes a snapshot to determine eligibility for quarterly revenue share
     function takeSnapshot() external onlyPROSPERA nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         emit SnapshotTaken(currentTimestamp);
@@ -391,16 +382,18 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             totalStakers += activeStakers[i];
         }
 
+        uint8 newCase = 3;
         for (uint8 i; i < 4; ++i) {
             if (totalStakers <= cases[i].maxWallets) {
-                currentCase = i;
-                emit CurrentCaseUpdated(currentCase);
-                return;
+                newCase = i;
+                break;
             }
         }
 
-        currentCase = 3;
-        emit CurrentCaseUpdated(currentCase);
+        if (newCase != currentCase) {
+            currentCase = newCase;
+            emit CurrentCaseUpdated(currentCase);
+        }
     }
 
     /// @notice Removes a staker from a tier
