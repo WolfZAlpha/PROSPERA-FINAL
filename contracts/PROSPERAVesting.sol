@@ -63,6 +63,11 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @param vestingInfo The complete vesting schedule information
     event VestingScheduleCreated(address indexed account, Vesting vestingInfo);
 
+    /// @notice Emitted when a vesting schedule is updated after releasing tokens
+    /// @param account The address of the account whose vesting schedule is updated
+    /// @param updatedVesting The updated vesting schedule information
+    event VestingScheduleUpdated(address indexed account, Vesting updatedVesting);
+
     // Errors
     /// @notice Error for vesting not being active
     error VestingNotActive();
@@ -177,11 +182,11 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         if (amountToRelease == 0) revert NoTokensToRelease();
 
         vesting.releasedAmount += amountToRelease;
-        bool stillActive = vesting.releasedAmount < vesting.totalAmount;
-        vesting.active = stillActive;
+        vesting.active = vesting.releasedAmount < vesting.totalAmount;
 
         emit VestingReleased(account, amountToRelease);
-        emit VestingUpdated(account, stillActive, vesting.releasedAmount);
+        emit VestingUpdated(account, vesting.active, vesting.releasedAmount);
+        emit VestingScheduleUpdated(account, vesting);
 
         return amountToRelease;
     }
