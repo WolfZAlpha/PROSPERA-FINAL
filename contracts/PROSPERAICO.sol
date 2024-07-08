@@ -9,6 +9,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 /// @title PROSPERA ICO Contract
 /// @notice This contract handles ICO functionality for the PROSPERA token
 /// @dev This contract is upgradeable and uses the UUPS proxy pattern
+/// @custom:security-contact security@prosperadefi.com
 contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
 
     /// @notice Address of the main PROSPERA contract

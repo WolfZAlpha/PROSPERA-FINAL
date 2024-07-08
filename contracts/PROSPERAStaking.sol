@@ -8,7 +8,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 
 /// @title PROSPERA Staking Contract
 /// @notice This contract handles staking functionality for the PROSPERA token
-/// @dev This contract is upgradeable and uses the UUPS proxy pattern
+/// @custom:security-contact security@prosperadefi.com
 contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     /// @notice Address of the main PROSPERA contract
     address public prosperaContract;
@@ -33,19 +33,19 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     bool public isStakingEnabled;
 
     /// @notice Mapping of staker details
-    mapping(address staker => Stake stakeInfo) private _stakes;
+    mapping(address => Stake) private _stakes;
 
     /// @notice Mapping of rewards for stakers
-    mapping(address staker => uint256 rewardAmount) private _stakeRewards;
+    mapping(address => uint256) private _stakeRewards;
 
     /// @notice Tracks if a staker is eligible for quarterly revenue share
-    mapping(address staker => bool isEligible) public quarterlyEligible;
+    mapping(address => bool) public quarterlyEligible;
 
     /// @notice Tracks the number of active stakers in each tier
-    mapping(uint8 tier => uint256 stakerCount) public activeStakers;
+    mapping(uint8 => uint256) public activeStakers;
 
     /// @notice Tracks addresses of stakers in each tier
-    mapping(uint8 tier => address[] stakerAddresses) private stakersInTier;
+    mapping(uint8 => address[]) private stakersInTier;
 
     /// @notice Daily reward interval
     uint256 public constant REWARD_INTERVAL = 1 days;
@@ -62,73 +62,64 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Tier limits
     uint256[TIER_COUNT] public tierLimits = [57143, 200000, 500000, 1500000, 10000000, 50000000];
 
-    /// @notice Multiplier in basis points for each tier
-    uint8[TIER_COUNT] public tierBonuses = [50, 50, 150, 175, 100, 125, 175];
-
     /// @notice List of cases for staking rewards
     Case[4] public cases;
 
     /// @notice Current case being used
     uint8 public currentCase;
 
-    // Events
     /// @notice Emitted when staking is enabled or disabled
-    /// @param enabled The new staking status
     event StakingEnabled(bool indexed enabled);
 
     /// @notice Emitted when tokens are staked
-    /// @param user The address of the user
-    /// @param amount The amount of tokens staked
-    /// @param total The total amount of tokens staked by the user
     event Staked(address indexed user, uint256 amount, uint256 total);
 
     /// @notice Emitted when tokens are unstaked
-    /// @param user The address of the user
-    /// @param amount The amount of tokens unstaked
-    /// @param total The total amount of tokens unstaked by the user
     event Unstaked(address indexed user, uint256 amount, uint256 total);
 
     /// @notice Emitted when tokens are locked
-    /// @param user The address of the user
-    /// @param amount The amount of tokens locked
-    /// @param lockDuration The duration for which the tokens are locked    
     event TokensLocked(address indexed user, uint256 amount, uint256 lockDuration);
 
     /// @notice Emitted when a snapshot is taken
-    /// @param timestamp The timestamp of the snapshot
     event SnapshotTaken(uint256 indexed timestamp);
 
-    /// @notice User snapshot taken
-    /// @param user The address of the user
-    /// @param isEligible Whether the user is eligible for quarterly revenue share
+    /// @notice Emitted when a user's snapshot is taken
     event UserSnapshotTaken(address indexed user, bool isEligible);
 
     /// @notice Emitted when the current case is updated
-    /// @param currentCase The new current case
     event CurrentCaseUpdated(uint8 indexed currentCase);
 
     /// @notice Emitted when a user's reward is updated
-    /// @param user The address of the user
-    /// @param reward The new reward amount
     event RewardUpdated(address indexed user, uint256 reward);
 
-    // Errors
-    /// @notice Error message for not being a PROSPERA contract
+    /// @notice Emitted when the contract is initialized
+    event StakingInitialized(address prosperaContract);
+
+    /// @notice Emitted when a staker is added to a tier
+    event StakerAddedToTier(address indexed staker, uint8 tier);
+
+    /// @notice Emitted when a staker is removed from a tier
+    event StakerRemovedFromTier(address indexed staker, uint8 tier);
+
+    /// @notice Emitted when the number of active stakers in a tier is updated
+    event ActiveStakersUpdated(uint8 tier, uint256 count);
+
+    /// @notice Error for when the caller is not the PROSPERA contract
     error NotPROSPERAContract();
 
-    /// @notice Error message for not being staking enabled
+    /// @notice Error for when staking is not enabled
     error StakingNotEnabled();
 
-    /// @notice Error message for invalid stake amount
+    /// @notice Error for invalid stake amount
     error InvalidStakeAmount();
 
-    /// @notice Error message for invalid lock duration
+    /// @notice Error for invalid lock duration
     error InvalidLockDuration();
 
-    /// @notice Error message for insufficient staked amount
+    /// @notice Error for insufficient staked amount
     error InsufficientStakedAmount(uint256 available, uint256 required);
 
-    /// @notice Error message for tokens still locked
+    /// @notice Error for when tokens are still locked
     error TokensStillLocked();
 
     /// @notice Ensures that only the PROSPERA contract can call the function
@@ -143,15 +134,15 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     }
 
     /// @notice Initializes the contract
+    /// @dev This function is called once by the deployer to set up the contract
     /// @param _prosperaContract Address of the PROSPERA token contract
-    function initialize(address _prosperaContract) initializer public {
+    function initialize(address _prosperaContract) external initializer {
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
 
         prosperaContract = _prosperaContract;
 
-        // Initialize cases for staking rewards
         cases[0] = Case({
             maxWallets: 1500,
             maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
@@ -175,6 +166,8 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             maxWalletsPerTier: [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100],
             dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]
         });
+
+        emit StakingInitialized(_prosperaContract);
     }
 
     /// @notice Authorizes an upgrade to a new implementation
@@ -205,6 +198,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             _updateReward(staker);
         } else {
             stakersInTier[tier].push(staker);
+            emit StakerAddedToTier(staker, tier);
         }
 
         _stakes[staker] = Stake({
@@ -214,7 +208,9 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             lockedUp: isLockedUp,
             lockupDuration: lockDuration
         });
-        ++activeStakers[tier];
+        
+        uint256 newActiveStakers = ++activeStakers[tier];
+        emit ActiveStakersUpdated(tier, newActiveStakers);
 
         _updateCurrentCase();
 
@@ -233,14 +229,14 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         if (stakeInfo.lockedUp && block.timestamp < stakeInfo.timestamp + stakeInfo.lockupDuration) revert TokensStillLocked();
 
         uint256 reward = _stakeRewards[staker];
-
         uint8 tier = stakeInfo.tier;
 
         stakeInfo.amount -= unstakeAmount;
         if (stakeInfo.amount == 0) {
             delete _stakes[staker];
             delete _stakeRewards[staker];
-            --activeStakers[tier];
+            uint256 newActiveStakers = --activeStakers[tier];
+            emit ActiveStakersUpdated(tier, newActiveStakers);
             _removeStakerFromTier(tier, staker);
         } else {
             _stakes[staker] = stakeInfo;
@@ -276,10 +272,10 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         uint256 currentTimestamp = block.timestamp;
         emit SnapshotTaken(currentTimestamp);
 
-        for (uint8 i = 0; i < TIER_COUNT; i++) {
+        for (uint8 i; i < TIER_COUNT; ++i) {
             address[] memory stakers = stakersInTier[i];
             uint256 stakersLength = stakers.length;
-            for (uint256 j = 0; j < stakersLength; j++) {
+            for (uint256 j; j < stakersLength; ++j) {
                 bool isEligible = _checkEligibility(stakers[j], currentTimestamp);
                 quarterlyEligible[stakers[j]] = isEligible;
                 emit UserSnapshotTaken(stakers[j], isEligible);
@@ -291,7 +287,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @param stakerAddress The address of the staker
     function _updateReward(address stakerAddress) private {
         uint256 stakedDuration = (block.timestamp - _stakes[stakerAddress].timestamp) / REWARD_INTERVAL;
-        uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0; // Tier 0 if not locked up
+        uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0;
         uint256 calculatedReward;
 
         if (currentCase == 0) {
@@ -313,51 +309,47 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @param amount The amount of tokens staked
     /// @param tier The tier of the staker
     /// @param stakedDuration The duration for which the tokens have been staked (in days)
-    /// @return reward The calculated reward in tokens
-    function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+    /// @return The calculated reward in tokens
+    function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[0].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
-        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /// @notice Calculates the reward for Case 1 (up to 3,000 wallets)
     /// @param amount The amount of tokens staked
     /// @param tier The tier of the staker
     /// @param stakedDuration The duration for which the tokens have been staked (in days)
-    /// @return reward The calculated reward in tokens
-function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+    /// @return The calculated reward in tokens
+    function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[1].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
-        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /// @notice Calculates the reward for Case 2 (up to 10,000 wallets)
     /// @param amount The amount of tokens staked
     /// @param tier The tier of the staker
     /// @param stakedDuration The duration for which the tokens have been staked (in days)
-    /// @return reward The calculated reward in tokens
-    function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+    /// @return The calculated reward in tokens
+    function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[2].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
-        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /// @notice Calculates the reward for Case 3 (up to 20,000 wallets)
     /// @param amount The amount of tokens staked
     /// @param tier The tier of the staker
     /// @param stakedDuration The duration for which the tokens have been staked (in days)
-    /// @return reward The calculated reward in tokens
-    function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256 reward) {
+    /// @return The calculated reward in tokens
+    function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[3].dailyYieldPercentage[tier];
-        uint256 stakedAmount = amount;
-        reward = ((stakedAmount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
     }
 
     /// @notice Determines the tier based on the stake amount
     /// @param amount The amount staked
-    /// @return tier The tier number
-    function _getTierByStakeAmount(uint256 amount) private view returns (uint8 tier) {
-        for (uint8 i = 0; i < TIER_COUNT - 1; i++) {
+    /// @return The tier number
+    function _getTierByStakeAmount(uint256 amount) private view returns (uint8) {
+        for (uint8 i; i < TIER_COUNT - 1; ++i) {
             if (amount < tierLimits[i]) {
                 return i + 1;
             }
@@ -367,12 +359,12 @@ function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuratio
 
     /// @notice Updates the current case based on the number of active stakers
     function _updateCurrentCase() private {
-        uint256 totalStakers = 0;
-        for (uint8 i = 0; i < TIER_COUNT; i++) {
+        uint256 totalStakers;
+        for (uint8 i; i < TIER_COUNT; ++i) {
             totalStakers += activeStakers[i];
         }
 
-        for (uint8 i = 0; i < 4; i++) {
+        for (uint8 i; i < 4; ++i) {
             if (totalStakers <= cases[i].maxWallets) {
                 currentCase = i;
                 emit CurrentCaseUpdated(currentCase);
@@ -380,7 +372,6 @@ function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuratio
             }
         }
 
-        // If we reach here, use the last case
         currentCase = 3;
         emit CurrentCaseUpdated(currentCase);
     }
@@ -390,10 +381,11 @@ function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuratio
     /// @param stakerAddress The address of the staker
     function _removeStakerFromTier(uint8 tier, address stakerAddress) private {
         uint256 length = stakersInTier[tier].length;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i; i < length; ++i) {
             if (stakersInTier[tier][i] == stakerAddress) {
                 stakersInTier[tier][i] = stakersInTier[tier][length - 1];
                 stakersInTier[tier].pop();
+                emit StakerRemovedFromTier(stakerAddress, tier);
                 break;
             }
         }
@@ -402,17 +394,15 @@ function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuratio
     /// @notice Checks if a staker is eligible for quarterly revenue share
     /// @param stakerAddress The address of the staker
     /// @param currentTimestamp The current timestamp
-    /// @return isEligible True if eligible, false otherwise
-    function _checkEligibility(address stakerAddress, uint256 currentTimestamp) private view returns (bool isEligible) {
+    /// @return Whether the staker is eligible
+    function _checkEligibility(address stakerAddress, uint256 currentTimestamp) private view returns (bool) {
         Stake memory stakeInfo = _stakes[stakerAddress];
         uint256 currentQuarterStart = currentTimestamp - (currentTimestamp % (90 days));
 
         if (stakeInfo.lockedUp) {
-            // Eligibility criteria for locked-up stakes
-            isEligible = stakeInfo.amount >= 60000 * 10**18;
+            return stakeInfo.amount >= 60000 * 10**18;
         } else {
-            // Eligibility criteria for non-locked-up stakes
-            isEligible = stakeInfo.amount >= 70000 * 10**18 && stakeInfo.timestamp <= currentQuarterStart;
+            return stakeInfo.amount >= 70000 * 10**18 && stakeInfo.timestamp <= currentQuarterStart;
         }
     }
 
@@ -423,25 +413,60 @@ function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuratio
     /// @return tier The tier number
     /// @return lockedUp Whether the stake is locked up
     /// @return lockupDuration The duration of the lockup
-    function getStake(address stakerAddress) external view returns (uint256 amount, uint256 timestamp, uint8 tier, bool lockedUp, uint256 lockupDuration) {
+    function getStake(address stakerAddress) external view returns (uint256, uint256, uint8, bool, uint256) {
         Stake memory stakeInfo = _stakes[stakerAddress];
         return (stakeInfo.amount, stakeInfo.timestamp, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
 
     /// @notice Returns the reward for a given staker
     /// @param stakerAddress The address of the staker
-    /// @return reward The reward amount
-    function getReward(address stakerAddress) external view returns (uint256 reward) {
+    /// @return The reward amount
+    function getReward(address stakerAddress) external view returns (uint256) {
         return _stakeRewards[stakerAddress];
     }
 
     /// @notice Returns the current case and total number of stakers
     /// @return currentCaseNumber The current case number
     /// @return totalStakers The total number of stakers across all tiers
-    function getCurrentCaseAndTotalStakers() external view returns (uint8 currentCaseNumber, uint256 totalStakers) {
-        currentCaseNumber = currentCase;
-        for (uint8 i = 0; i < TIER_COUNT; i++) {
+    function getCurrentCaseAndTotalStakers() external view returns (uint8, uint256) {
+        uint256 totalStakers;
+        for (uint8 i; i < TIER_COUNT; ++i) {
             totalStakers += activeStakers[i];
         }
+        return (currentCase, totalStakers);
+    }
+
+    /// @notice Returns the total number of stakers in a specific tier
+    /// @param tier The tier number
+    /// @return The number of stakers in the tier
+    function getTotalStakersInTier(uint8 tier) external view returns (uint256) {
+        require(tier < TIER_COUNT, "Invalid tier");
+        return stakersInTier[tier].length;
+    }
+
+    /// @notice Returns a range of staker addresses in a specific tier
+    /// @param tier The tier number
+    /// @param startIndex The starting index of the range
+    /// @param endIndex The ending index of the range
+    /// @return An array of staker addresses in the specified range
+    function getStakersInTier(uint8 tier, uint256 startIndex, uint256 endIndex) external view returns (address[] memory) {
+        require(tier < TIER_COUNT, "Invalid tier");
+        require(startIndex < endIndex, "Invalid index range");
+        require(endIndex <= stakersInTier[tier].length, "End index out of bounds");
+
+        address[] memory stakers = new address[](endIndex - startIndex);
+        for (uint256 i = startIndex; i < endIndex; ++i) {
+            stakers[i - startIndex] = stakersInTier[tier][i];
+        }
+        return stakers;
+    }
+
+    /// @notice Checks if a staker is in a specific tier
+    /// @param staker The address of the staker
+    /// @param tier The tier number
+    /// @return Whether the staker is in the specified tier
+    function isStakerInTier(address staker, uint8 tier) external view returns (bool) {
+        require(tier < TIER_COUNT, "Invalid tier");
+        return _stakes[staker].tier == tier;
     }
 }
