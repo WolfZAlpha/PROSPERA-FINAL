@@ -8,7 +8,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 
 /// @title PROSPERA Staking Contract
 /// @notice This contract handles staking functionality for the PROSPERA token
-/// @custom:security-contact security@prosperadefi.com
+/// @dev This contract is upgradeable and uses the UUPS proxy pattern
 contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     /// @notice Address of the main PROSPERA contract
     address public prosperaContract;
@@ -110,6 +110,9 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Emitted when a case is initialized
     event CaseInitialized(uint8 indexed caseIndex, uint256 maxWallets);
 
+    /// @notice Emitted when a stake is updated
+    event StakeUpdated(address indexed staker, uint256 amount, uint8 tier, bool lockedUp, uint256 lockupDuration);
+
     /// @notice Error for when the caller is not the PROSPERA contract
     error NotPROSPERAContract();
 
@@ -158,26 +161,35 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
         prosperaContract = _prosperaContract;
 
-        _initializeCase(0, 1500, [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8], [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]);
-        _initializeCase(1, 3000, [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15], [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)]);
-        _initializeCase(2, 10000, [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50], [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)]);
-        _initializeCase(3, 20000, [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100], [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]);
+        cases[0] = Case({
+            maxWallets: 1500,
+            maxWalletsPerTier: [150, type(uint256).max, type(uint256).max, type(uint256).max, 150, 23, 8],
+            dailyYieldPercentage: [uint256(0.0005 * 10**18), uint256(0.0005 * 10**18), uint256(0.00075 * 10**18), uint256(0.0015 * 10**18), uint256(0.00175 * 10**18), uint256(0.00225 * 10**18), uint256(0.00275 * 10**18)]
+        });
+
+        cases[1] = Case({
+            maxWallets: 3000,
+            maxWalletsPerTier: [300, type(uint256).max, type(uint256).max, type(uint256).max, 300, 45, 15],
+            dailyYieldPercentage: [uint256(0.00025 * 10**18), uint256(0.00035 * 10**18), uint256(0.00055 * 10**18), uint256(0.00085 * 10**18), uint256(0.00135 * 10**18), uint256(0.00125 * 10**18), uint256(0.00175 * 10**18)]
+        });
+
+        cases[2] = Case({
+            maxWallets: 10000,
+            maxWalletsPerTier: [1000, type(uint256).max, type(uint256).max, type(uint256).max, 1000, 150, 50],
+            dailyYieldPercentage: [uint256(0.000075 * 10**18), uint256(0.00009 * 10**18), uint256(0.000125 * 10**18), uint256(0.00035 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18), uint256(0.00135 * 10**18)]
+        });
+
+        cases[3] = Case({
+            maxWallets: 20000,
+            maxWalletsPerTier: [2000, type(uint256).max, type(uint256).max, type(uint256).max, 2000, 300, 100],
+            dailyYieldPercentage: [uint256(0.00005 * 10**18), uint256(0.000075 * 10**18), uint256(0.0001 * 10**18), uint256(0.00025 * 10**18), uint256(0.00075 * 10**18), uint256(0.00095 * 10**18), uint256(0.00115 * 10**18)]
+        });
+
+        for (uint8 i; i < 4; ++i) {
+            emit CaseInitialized(i, cases[i].maxWallets);
+        }
 
         emit StakingInitialized(_prosperaContract);
-    }
-
-    /// @notice Initializes a case for staking rewards
-    /// @param caseIndex The index of the case
-    /// @param maxWallets The maximum number of wallets for the case
-    /// @param maxWalletsPerTier The maximum number of wallets per tier
-    /// @param dailyYieldPercentage The daily yield percentage for each tier
-    function _initializeCase(uint8 caseIndex, uint256 maxWallets, uint256[7] memory maxWalletsPerTier, uint256[7] memory dailyYieldPercentage) private {
-        cases[caseIndex] = Case({
-            maxWallets: maxWallets,
-            maxWalletsPerTier: maxWalletsPerTier,
-            dailyYieldPercentage: dailyYieldPercentage
-        });
-        emit CaseInitialized(caseIndex, maxWallets);
     }
 
     /// @notice Authorizes an upgrade to a new implementation
@@ -225,13 +237,14 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         _updateCurrentCase();
 
         emit Staked(staker, stakeAmount, _stakes[staker].amount);
+        emit StakeUpdated(staker, stakeAmount, tier, isLockedUp, lockDuration);
     }
 
     /// @notice Unstakes a specified amount of tokens
     /// @param staker The address of the staker
     /// @param unstakeAmount The number of tokens to unstake
     /// @return amountToTransfer The total amount to transfer back to the staker
-    function unstake(address staker, uint256 unstakeAmount) external onlyPROSPERA nonReentrant returns (uint256 amountToTransfer) {
+    function unstake(address staker, uint256 unstakeAmount) external onlyPROSPERA nonReentrant returns (uint256) {
         if (!isStakingEnabled) revert StakingNotEnabled();
         if (unstakeAmount == 0) revert InvalidStakeAmount();
         Stake memory stakeInfo = _stakes[staker];
@@ -242,6 +255,8 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         uint8 tier = stakeInfo.tier;
 
         stakeInfo.amount -= unstakeAmount;
+        uint256 amountToTransfer = unstakeAmount + reward;
+
         if (stakeInfo.amount == 0) {
             delete _stakes[staker];
             delete _stakeRewards[staker];
@@ -254,9 +269,10 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
         _updateCurrentCase();
 
-        amountToTransfer = unstakeAmount + reward;
-
         emit Unstaked(staker, unstakeAmount, reward);
+        emit StakeUpdated(staker, stakeInfo.amount, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
+        
+        return amountToTransfer;
     }
 
     /// @notice Locks a specified amount of tokens
@@ -275,9 +291,10 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         stakeInfo.timestamp = block.timestamp;
 
         emit TokensLocked(staker, lockAmount, lockDuration);
+        emit StakeUpdated(staker, stakeInfo.amount, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
 
-    /// @notice Takes a snapshot to determine eligibility for quarterly revenue share
+/// @notice Takes a snapshot to determine eligibility for quarterly revenue share
     function takeSnapshot() external onlyPROSPERA nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         emit SnapshotTaken(currentTimestamp);
@@ -295,7 +312,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
 
     /// @notice Updates the reward for a staker based on the current case and tier
     /// @param stakerAddress The address of the staker
-function _updateReward(address stakerAddress) private {
+    function _updateReward(address stakerAddress) private {
         uint256 stakedDuration = (block.timestamp - _stakes[stakerAddress].timestamp) / REWARD_INTERVAL;
         uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0;
         uint256 calculatedReward;
@@ -418,12 +435,8 @@ function _updateReward(address stakerAddress) private {
 
     /// @notice Returns the stake details for a given staker
     /// @param stakerAddress The address of the staker
-    /// @return amount The amount staked
-    /// @return timestamp The timestamp when staked
-    /// @return tier The tier number
-    /// @return lockedUp Whether the stake is locked up
-    /// @return lockupDuration The duration of the lockup
-    function getStake(address stakerAddress) external view returns (uint256 amount, uint256 timestamp, uint8 tier, bool lockedUp, uint256 lockupDuration) {
+    /// @return The stake details (amount, timestamp, tier, lockedUp, lockupDuration)
+    function getStake(address stakerAddress) external view returns (uint256, uint256, uint8, bool, uint256) {
         Stake memory stakeInfo = _stakes[stakerAddress];
         return (stakeInfo.amount, stakeInfo.timestamp, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
@@ -436,9 +449,9 @@ function _updateReward(address stakerAddress) private {
     }
 
     /// @notice Returns the current case and total number of stakers
-    /// @return currentCaseNumber The current case number
-    /// @return totalStakers The total number of stakers across all tiers
-    function getCurrentCaseAndTotalStakers() external view returns (uint8 currentCaseNumber, uint256 totalStakers) {
+    /// @return The current case number and total number of stakers
+    function getCurrentCaseAndTotalStakers() external view returns (uint8, uint256) {
+        uint256 totalStakers;
         for (uint8 i; i < TIER_COUNT; ++i) {
             totalStakers += activeStakers[i];
         }
