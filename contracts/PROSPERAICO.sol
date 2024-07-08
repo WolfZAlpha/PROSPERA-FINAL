@@ -5,12 +5,14 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /// @title PROSPERA ICO Contract
 /// @notice This contract handles ICO functionality for the PROSPERA token
 /// @dev This contract is upgradeable and uses the UUPS proxy pattern
 /// @custom:security-contact security@prosperadefi.com
 contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
+    using Address for address payable;
 
     /// @notice Address of the main PROSPERA contract
     address public prosperaContract;
@@ -49,10 +51,10 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
     uint256 public tier3Sold;
 
     /// @notice Indicates if the ICO is active
-    bool public icoActive = true;
+    bool public icoActive;
 
     /// @notice Current tier of the ICO
-    IcoTier public currentTier = IcoTier.Tier1;
+    IcoTier public currentTier;
 
     /// @notice Wallet address for ICO funds
     address public icoWallet;
@@ -100,6 +102,12 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
     /// @param newTier The new ICO tier
     event CurrentTierUpdated(IcoTier indexed newTier);
 
+    /// @notice Emitted when the contract is initialized
+    /// @param prosperaContract The address of the PROSPERA contract
+    /// @param icoWallet The address of the ICO wallet
+    /// @param prosicoWallet The address of the prosico wallet
+    event IcoInitialized(address indexed prosperaContract, address indexed icoWallet, address indexed prosicoWallet);
+
     // Errors
     /// @notice Error for not the PROSPERA contract
     error NotProsperaContract();
@@ -136,13 +144,11 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         _disableInitializers();
     }
 
-    /**
-     * @notice Initializes the contract
-     * @param _prosperaContract Address of the PROSPERA token contract
-     * @param _icoWallet Address of the ICO wallet
-     * @param _prosicoWallet Address of the prosico wallet
-     */
-    function initialize(address _prosperaContract, address _icoWallet, address _prosicoWallet) initializer public {
+    /// @notice Initializes the contract
+    /// @param _prosperaContract Address of the PROSPERA token contract
+    /// @param _icoWallet Address of the ICO wallet
+    /// @param _prosicoWallet Address of the prosico wallet
+    function initialize(address _prosperaContract, address _icoWallet, address _prosicoWallet) external initializer {
         __Ownable_init(msg.sender);
         __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
@@ -151,23 +157,23 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         prosperaContract = _prosperaContract;
         icoWallet = _icoWallet;
         prosicoWallet = _prosicoWallet;
+        icoActive = true;
+        currentTier = IcoTier.Tier1;
+
+        emit IcoInitialized(_prosperaContract, _icoWallet, _prosicoWallet);
     }
 
-    /**
-     * @notice Authorizes an upgrade to a new implementation
-     * @dev This function is left empty but is required by the UUPSUpgradeable contract
-     * @param newImplementation Address of the new implementation
-     */
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev This function is left empty but is required by the UUPSUpgradeable contract
+    /// @param newImplementation Address of the new implementation
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
-    /**
-     * @notice Purchases tokens during the ICO
-     * @dev This function handles the token purchase process, including tax calculation and dynamic tier transitions
-     * @param buyer The address of the buyer
-     * @param tokenAmount The number of tokens to purchase
-     * @return tokensBought The number of tokens bought
-     * @return totalCost The total cost in ETH
-     */
+    /// @notice Purchases tokens during the ICO
+    /// @dev This function handles the token purchase process, including tax calculation and dynamic tier transitions
+    /// @param buyer The address of the buyer
+    /// @param tokenAmount The number of tokens to purchase
+    /// @return tokensBought The number of tokens bought
+    /// @return totalCost The total cost in ETH
     function buyTokens(address buyer, uint256 tokenAmount) external payable onlyPROSPERA nonReentrant returns (uint256 tokensBought, uint256 totalCost) {
         if (!icoActive) revert IcoNotActive();
     
@@ -193,23 +199,23 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         emit TokensPurchased(buyer, tokensBought, totalCost);
 
         // Transfer ETH to ICO wallet and tax wallet
-        payable(icoWallet).transfer(totalCost);
-        payable(owner()).transfer(totalTaxAmount); // Assuming owner is the tax wallet
+        payable(icoWallet).sendValue(totalCost);
+        payable(owner()).sendValue(totalTaxAmount); // Assuming owner is the tax wallet
 
         // Return excess ETH if any
         if (remainingEth > totalCost) {
-            payable(buyer).transfer(remainingEth - totalCost);
+            payable(buyer).sendValue(remainingEth - totalCost);
         }
+
+        return (tokensBought, totalCost);
     }
 
-    /**
-     * @notice Buys tokens from the current ICO tier and handles transitions between tiers
-     * @dev This function handles purchasing across multiple tiers if necessary
-     * @param tokensToBuy The number of tokens attempting to buy
-     * @param availableEth The amount of ETH available for the purchase
-     * @return totalTokensBought The total number of tokens successfully purchased
-     * @return totalTierCost The total cost of the purchased tokens
-     */
+    /// @notice Buys tokens from the current ICO tier and handles transitions between tiers
+    /// @dev This function handles purchasing across multiple tiers if necessary
+    /// @param tokensToBuy The number of tokens attempting to buy
+    /// @param availableEth The amount of ETH available for the purchase
+    /// @return totalTokensBought The total number of tokens successfully purchased
+    /// @return totalTierCost The total cost of the purchased tokens
     function buyFromCurrentTier(uint256 tokensToBuy, uint256 availableEth) private returns (uint256 totalTokensBought, uint256 totalTierCost) {
         while (tokensToBuy > 0 && availableEth > 0 && icoActive) {
             uint256 tierTokens;
@@ -261,6 +267,8 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
                 if (tier3Sold >= TIER3_TOKENS) endIco();
             }
         }
+
+        return (totalTokensBought, totalTierCost);
     }
 
     /// @notice Updates the ICO tier
@@ -277,14 +285,12 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         emit IcoEnded();
     }
 
-    /**
-     * @notice Gets the current ICO state
-     * @return _icoActive Whether the ICO is active
-     * @return _currentTier The current ICO tier
-     * @return _tier1Sold The number of tokens sold in Tier 1
-     * @return _tier2Sold The number of tokens sold in Tier 2
-     * @return _tier3Sold The number of tokens sold in Tier 3
-     */
+    /// @notice Gets the current ICO state
+    /// @return _icoActive Whether the ICO is active
+    /// @return _currentTier The current ICO tier
+    /// @return _tier1Sold The number of tokens sold in Tier 1
+    /// @return _tier2Sold The number of tokens sold in Tier 2
+    /// @return _tier3Sold The number of tokens sold in Tier 3
     function getIcoState() external view returns (
         bool _icoActive,
         IcoTier _currentTier,
@@ -292,15 +298,19 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         uint256 _tier2Sold,
         uint256 _tier3Sold
     ) {
-        return (icoActive, currentTier, tier1Sold, tier2Sold, tier3Sold);
+        _icoActive = icoActive;
+        _currentTier = currentTier;
+        _tier1Sold = tier1Sold;
+        _tier2Sold = tier2Sold;
+        _tier3Sold = tier3Sold;
+        return (_icoActive, _currentTier, _tier1Sold, _tier2Sold, _tier3Sold);
     }
 
-    /**
-     * @notice Gets the total amount of ETH a buyer has spent in the ICO
-     * @param buyer The address of the buyer
-     * @return amount The total amount spent by the buyer
-     */
+    /// @notice Gets the total amount of ETH a buyer has spent in the ICO
+    /// @param buyer The address of the buyer
+    /// @return amount The total amount spent by the buyer
     function getBuyerPurchaseAmount(address buyer) external view returns (uint256 amount) {
-        return _icoBuys[buyer];
+        amount = _icoBuys[buyer];
+        return amount;
     }
 }

@@ -8,7 +8,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 
 /// @title PROSPERA Staking Contract
 /// @notice This contract handles staking functionality for the PROSPERA token
-/// @dev This contract is upgradeable and uses the UUPS proxy pattern
+/// @custom:security-contact security@prosperadefi.com
 contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     /// @notice Address of the main PROSPERA contract
     address public prosperaContract;
