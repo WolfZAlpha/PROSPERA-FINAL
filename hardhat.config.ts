@@ -18,7 +18,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true, // Enable optimizer
-            runs: 200, // Optimize for how many times you intend to run the code
+            runs: 25, // Optimize for how many times you intend to run the code
             details: {
               yul: true, // Enable Yul optimizer
               yulDetails: {

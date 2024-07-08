@@ -1,0 +1,443 @@
+// SPDX-License-Identifier: PROPRIETARY
+pragma solidity 0.8.20;
+
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import {ERC20PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PausableUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+
+/// @title PROSPERA Token Contract
+/// @author Prospera Development Team - Code Written By Founder/Owner: '15440397940800' , Audited/Guidance by: '258840480000' , Contributor: '298248087266945834683392000'
+/// @author dApp Developer's and connector's: '84035382421388400' , RevShare Backed By: '1032648170521968_3341360880'
+/// @notice This contract implements the PROSPERA token with various functionalities - will be upgraded to OMNICHAIN as time moves forward
+/// @custom:security-contact security@prosperadefi.com
+contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
+
+    // Constants
+
+    /// @notice Total supply of tokens
+    uint256 private constant TOTAL_SUPPLY = 1e9 * 10**18;
+
+    /// @notice Tokens allocated for staking rewards
+    uint256 private constant STAKING_SUPPLY = TOTAL_SUPPLY * 10000 / 100000;
+
+    /// @notice Tokens allocated for liquidity
+    uint256 private constant LIQUIDITY_SUPPLY = TOTAL_SUPPLY * 20000 / 100000;
+
+    /// @notice Tokens allocated for farming
+    uint256 private constant FARMING_SUPPLY = TOTAL_SUPPLY * 10000 / 100000;
+
+    /// @notice Tokens allocated for listing on exchanges
+    uint256 private constant LISTING_SUPPLY = TOTAL_SUPPLY * 12000 / 100000;
+
+    /// @notice Tokens allocated for reserves
+    uint256 private constant RESERVE_SUPPLY = TOTAL_SUPPLY * 5025 / 100000;
+
+    /// @notice Tokens allocated for marketing
+    uint256 private constant MARKETING_SUPPLY = TOTAL_SUPPLY * 5000 / 100000;
+
+    /// @notice Tokens allocated for team wallet
+    uint256 private constant TEAM_SUPPLY = TOTAL_SUPPLY * 11600 / 100000;
+
+    /// @notice Tokens allocated for dev wallet
+    uint256 private constant DEV_SUPPLY = TOTAL_SUPPLY * 11000 / 100000;
+
+    /// @notice Tokens allocated for the ICO
+    uint256 private constant ICO_SUPPLY = TOTAL_SUPPLY * 15375 / 100000;
+
+    /// @notice Burn rate applied on token transfers (percentage)
+    uint256 public constant BURN_RATE = 3;
+
+    /// @notice Tax rate applied on token transfers (percentage)
+    uint256 public constant TAX_RATE = 6;
+
+    /// @notice USDC token used for revenue sharing
+    address public usdcToken;
+
+    /// @notice Wallet address for tax collection
+    address public taxWallet;
+
+    /// @notice Wallet address for ICO funds
+    address public icoWallet;
+
+    /// @notice Wallet address for ICO supply
+    address public prosicoWallet;
+
+    /// @notice Wallet address for staking funds
+    address public stakingWallet;
+
+    /// @notice Address of the staking contract
+    address public stakingContract;
+
+    /// @notice Address of the vesting contract
+    address public vestingContract;
+
+    /// @notice Address of the ICO contract
+    address public icoContract;
+
+    /// @notice Address of the math contract
+    address public mathContract;
+
+    /// @notice Mapping of blacklisted addresses
+    mapping(address user => bool isBlacklisted) private _blacklist;
+
+    /// @notice Mapping of whitelisted addresses
+    mapping(address user => bool isWhitelisted) public whitelist;
+
+    // Storage slots
+    // Storage slot for staking wallet
+    bytes32 private constant STAKING_WALLET_SLOT = bytes32(uint256(keccak256("stakingWalletSlot")) - 1);
+    
+    // Storage slot for liquidity wallet
+    bytes32 private constant LIQUIDITY_WALLET_SLOT = bytes32(uint256(keccak256("liquidityWalletSlot")) - 1);
+    
+    // Storage slot for farming wallet
+    bytes32 private constant FARMING_WALLET_SLOT = bytes32(uint256(keccak256("farmingWalletSlot")) - 1);
+    
+    // Storage slot for listing wallet
+    bytes32 private constant LISTING_WALLET_SLOT = bytes32(uint256(keccak256("listingWalletSlot")) - 1);
+    
+    // Storage slot for reserve wallet
+    bytes32 private constant RESERVE_WALLET_SLOT = bytes32(uint256(keccak256("reserveWalletSlot")) - 1);
+    
+    // Storage slot for marketing wallet
+    bytes32 private constant MARKETING_WALLET_SLOT = bytes32(uint256(keccak256("marketingWalletSlot")) - 1);
+    
+    // Storage slot for team wallet
+    bytes32 private constant TEAM_WALLET_SLOT = bytes32(uint256(keccak256("teamWalletSlot")) - 1);
+    
+    // Storage slot for dev wallet
+    bytes32 private constant DEV_WALLET_SLOT = bytes32(uint256(keccak256("devWalletSlot")) - 1);
+
+    // Function selectors
+    bytes4 private constant ENABLE_STAKING_SELECTOR = bytes4(keccak256("enableStaking(bool)"));
+    bytes4 private constant STAKE_SELECTOR = bytes4(keccak256("stake(address,uint256,bool,uint256)"));
+    bytes4 private constant UNSTAKE_SELECTOR = bytes4(keccak256("unstake(address,uint256)"));
+    bytes4 private constant LOCK_TOKENS_SELECTOR = bytes4(keccak256("lockTokens(address,uint256,uint256)"));
+    bytes4 private constant TAKE_SNAPSHOT_SELECTOR = bytes4(keccak256("takeSnapshot()"));
+    bytes4 private constant ADD_TO_VESTING_SELECTOR = bytes4(keccak256("addToVesting(address,uint256,uint8)"));
+    bytes4 private constant RELEASE_VESTED_TOKENS_SELECTOR = bytes4(keccak256("releaseVestedTokens(address)"));
+    bytes4 private constant BUY_TOKENS_SELECTOR = bytes4(keccak256("buyTokens(address,uint256)"));
+    bytes4 private constant IS_VESTED_TOKEN_TRANSFER_SELECTOR = bytes4(keccak256("isVestedTokenTransfer(address)"));
+
+    // Events
+    event BlacklistUpdated(address indexed user, bool value);
+    event StakingEnabled(bool indexed enabled);
+    event TokensPurchased(address indexed buyer, uint256 amount, uint256 price);
+    event Staked(address indexed user, uint256 amount, uint256 total);
+    event Unstaked(address indexed user, uint256 amount, uint256 total);
+    event TokensLocked(address indexed user, uint256 amount, uint256 lockDuration);
+    event SnapshotTaken(uint256 indexed timestamp);
+    event Initialized(address indexed deployer);
+    event TransferWithTaxAndBurn(address indexed sender, address indexed recipient, uint256 amount, uint256 burnAmount, uint256 taxAmount);
+    event StateUpdated(string variable, address indexed account, bool value);
+    event WalletAddressSet(string indexed walletType, address indexed walletAddress);
+    event VestingAdded(address indexed user, uint256 startTime, uint256 endTime, uint256 amount, uint8 vestingType);
+    event VestingReleased(address indexed user);
+    event AddedToWhitelist(address indexed user);
+    event RemovedFromWhitelist(address indexed user);
+    event EthWithdrawn(address indexed recipient, uint256 amount);
+
+    // Errors
+    error BlacklistedAddress(address account);
+    error BlacklistZeroAddress();
+    error RemoveFromBlacklistZeroAddress();
+    error InsufficientBalance();
+    error NoEthToWithdraw();
+    error FallbackFunctionOnlyAcceptsETH();
+    error InvalidAddress();
+    error EthTransferFailed();
+    error ExternalCallFailed();
+    error VestedTokensCannotBeTransferred();
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the contract with the specified parameters
+    /// @dev This function sets up the initial state of the contract, including setting up wallets and minting the total supply
+    /// @param params Struct containing all initialization parameters
+    function initialize(InitializeParams memory params) initializer external {
+        __ERC20_init("PROSPERA", "PROS");
+        __ERC20Burnable_init();
+        __ERC20Pausable_init();
+        __Ownable_init(params.deployerWallet);
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
+
+        usdcToken = params.usdcToken;
+        taxWallet = params.taxWallet;
+        stakingWallet = params.stakingWallet;
+        icoWallet = params.icoWallet;
+        prosicoWallet = params.prosicoWallet;
+
+        StorageSlot.getAddressSlot(STAKING_WALLET_SLOT).value = params.stakingWallet;
+        StorageSlot.getAddressSlot(LIQUIDITY_WALLET_SLOT).value = params.liquidityWallet;
+        StorageSlot.getAddressSlot(FARMING_WALLET_SLOT).value = params.farmingWallet;
+        StorageSlot.getAddressSlot(LISTING_WALLET_SLOT).value = params.listingWallet;
+        StorageSlot.getAddressSlot(RESERVE_WALLET_SLOT).value = params.reserveWallet;
+        StorageSlot.getAddressSlot(MARKETING_WALLET_SLOT).value = params.marketingWallet;
+        StorageSlot.getAddressSlot(TEAM_WALLET_SLOT).value = params.teamWallet;
+        StorageSlot.getAddressSlot(DEV_WALLET_SLOT).value = params.devWallet;
+
+        _mint(params.deployerWallet, TOTAL_SUPPLY);
+
+        stakingContract = params.stakingContract;
+        vestingContract = params.vestingContract;
+        icoContract = params.icoContract;
+        mathContract = params.mathContract;
+
+        emit Initialized(params.deployerWallet);
+        emit WalletAddressSet("USDC Token", usdcToken);
+        emit WalletAddressSet("Tax Wallet", taxWallet);
+        emit WalletAddressSet("Staking Wallet", stakingWallet);
+        emit WalletAddressSet("ICO Wallet", icoWallet);
+        emit WalletAddressSet("Prosico Wallet", prosicoWallet);
+        emit WalletAddressSet("Liquidity Wallet", params.liquidityWallet);
+        emit WalletAddressSet("Farming Wallet", params.farmingWallet);
+        emit WalletAddressSet("Listing Wallet", params.listingWallet);
+        emit WalletAddressSet("Reserve Wallet", params.reserveWallet);
+        emit WalletAddressSet("Marketing Wallet", params.marketingWallet);
+        emit WalletAddressSet("Team Wallet", params.teamWallet);
+        emit WalletAddressSet("Dev Wallet", params.devWallet);
+    }
+
+    /// @notice Authorizes an upgrade to a new implementation
+    /// @dev This function is left empty but is required by the UUPSUpgradeable contract
+    /// @param newImplementation Address of the new implementation
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    /// @notice Pauses all token transfers
+    function pause() external onlyOwner {
+        _pause();
+        emit StateUpdated("paused", address(0), true);
+    }
+
+    /// @notice Unpauses all token transfers
+    function unpause() external onlyOwner {
+        _unpause();
+        emit StateUpdated("paused", address(0), false);
+    }
+
+    /// @notice Mints a specified amount of tokens to a given address
+    /// @param to The address to receive the minted tokens
+    /// @param amount The number of tokens to mint
+    function mint(address to, uint256 amount) external onlyOwner {
+        _mint(to, amount);
+        emit Transfer(address(0), to, amount);
+    }
+
+    /// @notice Adds an address to the blacklist
+    /// @param account The address to be blacklisted
+    function addToBlacklist(address account) external onlyOwner {
+        if (account == address(0)) revert BlacklistZeroAddress();
+        _blacklist[account] = true;
+        emit BlacklistUpdated(account, true);
+        emit StateUpdated("blacklist", account, true);
+    }
+
+    /// @notice Removes an address from the blacklist
+    /// @param account The address to be removed from the blacklist
+    function removeFromBlacklist(address account) external onlyOwner {
+        if (account == address(0)) revert RemoveFromBlacklistZeroAddress();
+        _blacklist[account] = false;
+        emit BlacklistUpdated(account, false);
+        emit StateUpdated("blacklist", account, false);
+    }
+
+    /// @notice Enables or disables staking
+    /// @param _enabled The new staking status (true to enable, false to disable)
+    function enableStaking(bool _enabled) external onlyOwner {
+        (bool success, ) = stakingContract.call(abi.encodeWithSelector(ENABLE_STAKING_SELECTOR, _enabled));
+        if (!success) revert ExternalCallFailed();
+        emit StakingEnabled(_enabled);
+        emit StateUpdated("isStakingEnabled", address(0), _enabled);
+    }
+
+    /// @notice Stakes a specified amount of tokens
+    /// @param stakeAmount The number of tokens to stake
+    /// @param isLockedUp Indicates if the tokens are locked up
+    /// @param lockDuration The duration for which tokens are locked up (in seconds)
+    function stake(uint256 stakeAmount, bool isLockedUp, uint256 lockDuration) external nonReentrant whenNotPaused {
+        if (_blacklist[msg.sender]) revert BlacklistedAddress(msg.sender);
+        
+        _transfer(msg.sender, stakingContract, stakeAmount);
+        
+        (bool success, ) = stakingContract.call(abi.encodeWithSelector(STAKE_SELECTOR, msg.sender, stakeAmount, isLockedUp, lockDuration));
+        if (!success) revert ExternalCallFailed();
+        
+        emit Staked(msg.sender, stakeAmount, stakeAmount);
+        emit StateUpdated("stake", msg.sender, true);
+    }
+
+    /// @notice Unstakes a specified amount of tokens
+    /// @param unstakeAmount The number of tokens to unstake
+    function unstake(uint256 unstakeAmount) external nonReentrant whenNotPaused {
+        if (_blacklist[msg.sender]) revert BlacklistedAddress(msg.sender);
+        
+        (bool success, bytes memory result) = stakingContract.call(abi.encodeWithSelector(UNSTAKE_SELECTOR, msg.sender, unstakeAmount));
+        if (!success) revert ExternalCallFailed();
+        
+        uint256 amountToTransfer = abi.decode(result, (uint256));
+        _transfer(stakingContract, msg.sender, amountToTransfer);
+        
+        emit Unstaked(msg.sender, unstakeAmount, amountToTransfer);
+        emit StateUpdated("unstake", msg.sender, true);
+    }
+
+    /// @notice Locks a specified amount of tokens
+    /// @param lockAmount The number of tokens to lock
+    /// @param lockDuration The duration for which tokens are locked (in seconds)
+    function lockTokens(uint256 lockAmount, uint256 lockDuration) external nonReentrant whenNotPaused {
+        if (_blacklist[msg.sender]) revert BlacklistedAddress(msg.sender);
+        
+        (bool success, ) = stakingContract.call(abi.encodeWithSelector(LOCK_TOKENS_SELECTOR, msg.sender, lockAmount, lockDuration));
+        if (!success) revert ExternalCallFailed();
+        
+        emit TokensLocked(msg.sender, lockAmount, lockDuration);
+        emit StateUpdated("lockTokens", msg.sender, true);
+    }
+
+    /// @notice Takes a snapshot to determine eligibility for quarterly revenue share
+    function takeSnapshot() external nonReentrant {
+        (bool success, ) = stakingContract.call(abi.encodeWithSelector(TAKE_SNAPSHOT_SELECTOR));
+        if (!success) revert ExternalCallFailed();
+        emit SnapshotTaken(block.timestamp);
+    }
+
+    /// @notice Adds an address to the vesting schedule
+    /// @param account The address to be added to the vesting schedule
+    /// @param amount The amount of tokens to be vested
+    /// @param vestingType The type of vesting schedule (0 for marketing team, 1 for PROSPERA team)
+    function addToVesting(address account, uint256 amount, uint8 vestingType) external onlyOwner {
+        if (account == address(0)) revert InvalidAddress();
+        if (balanceOf(account) < amount) revert InsufficientBalance();
+
+        (bool success, ) = vestingContract.call(abi.encodeWithSelector(ADD_TO_VESTING_SELECTOR, account, amount, vestingType));
+        if (!success) revert ExternalCallFailed();
+    }
+
+    /// @notice Releases vested tokens for an address
+    /// @param account The address to release tokens for
+    function releaseVestedTokens(address account) external {
+        (bool success, bytes memory result) = vestingContract.call(abi.encodeWithSelector(RELEASE_VESTED_TOKENS_SELECTOR, account));
+        if (!success) revert ExternalCallFailed();
+        
+        uint256 amountToRelease = abi.decode(result, (uint256));
+        _transfer(vestingContract, account, amountToRelease);
+        emit VestingReleased(account);
+    }
+
+    /// @notice Purchases tokens during the ICO
+    /// @param tokenAmount The number of tokens to purchase
+    function buyTokens(uint256 tokenAmount) external payable nonReentrant whenNotPaused {
+        if (_blacklist[msg.sender]) revert BlacklistedAddress(msg.sender);
+        
+        (bool success, bytes memory result) = icoContract.call{value: msg.value}(abi.encodeWithSelector(BUY_TOKENS_SELECTOR, msg.sender, tokenAmount));
+        if (!success) revert ExternalCallFailed();
+        
+        (uint256 tokensBought, uint256 ethSpent) = abi.decode(result, (uint256, uint256));
+        _transfer(prosicoWallet, msg.sender, tokensBought);
+        
+        if (msg.value > ethSpent) {
+            // Refund excess ETH
+            _safeTransferETH(msg.sender, msg.value - ethSpent);
+        }
+        
+        emit TokensPurchased(msg.sender, tokensBought, ethSpent);
+        emit StateUpdated("IcoPurchase", msg.sender, true);
+    }
+
+    /// @notice Adds an address to the whitelist
+    /// @param account The address to be added
+    function addToWhitelist(address account) external onlyOwner {
+        whitelist[account] = true;
+        emit AddedToWhitelist(account);
+        emit StateUpdated("whitelist", account, true);
+    }
+
+    /// @notice Removes an address from the whitelist
+    /// @param account The address to be removed
+    function removeFromWhitelist(address account) external onlyOwner {
+        whitelist[account] = false;
+        emit RemovedFromWhitelist(account);
+        emit StateUpdated("whitelist", account, false);
+    }
+
+    /// @notice Withdraws all ETH from the contract to the owner's address
+    /// @return success True if the withdrawal was successful
+    function withdrawETH() external onlyOwner nonReentrant returns (bool success) {
+        address payable ownerPayable = payable(owner());
+        uint256 balance = address(this).balance;
+        
+        if (balance == 0) revert NoEthToWithdraw();
+        
+        success = _safeTransferETH(ownerPayable, balance);
+        
+        emit EthWithdrawn(ownerPayable, balance);
+    }
+
+    /// @notice Fallback function to receive ETH
+    receive() external payable {}
+
+    /// @notice Fallback function to handle unexpected calls
+    fallback() external payable {
+        if (msg.data.length != 0) revert FallbackFunctionOnlyAcceptsETH();
+    }
+
+    /// @notice Safely transfers ETH to an address
+    /// @param recipientAddress The address to receive the ETH
+    /// @param amount The amount of ETH to transfer
+    /// @return success True if the transfer was successful
+    function _safeTransferETH(address recipientAddress, uint256 amount) private returns (bool success) {
+        if (address(this).balance < amount) revert InsufficientBalance();
+
+        (success, ) = recipientAddress.call{value: amount}("");
+        if (!success) revert EthTransferFailed();
+    }
+
+    /// @notice Updates the internal state during transfers
+    /// @param from The address sending the tokens
+    /// @param to The address receiving the tokens
+    /// @param value The amount of tokens being transferred
+    function _update(address from, address to, uint256 value) internal override(ERC20Upgradeable, ERC20PausableUpgradeable) {
+        super._update(from, to, value);
+
+        if (_blacklist[from]) revert BlacklistedAddress(from);
+        if (_blacklist[to]) revert BlacklistedAddress(to);
+
+        (bool success, bytes memory result) = vestingContract.call(abi.encodeWithSelector(IS_VESTED_TOKEN_TRANSFER_SELECTOR, from));
+        if (!success) revert ExternalCallFailed();
+        bool isVested = abi.decode(result, (bool));
+        if (isVested) revert VestedTokensCannotBeTransferred();
+    
+        if (from != address(this) && to != address(this) && from != owner() && to != owner() && from != taxWallet && to != taxWallet) {
+            //transfer is handled by the parent _update function
+        } else {
+            _handleNormalBuySell(from, to, value);
+        }
+    }
+
+    /// @notice Handles normal buy and sell transactions with tax and burn
+    /// @param from The address sending the tokens
+    /// @param to The address receiving the tokens
+    /// @param amount The amount of tokens being transferred
+    function _handleNormalBuySell(address from, address to, uint256 amount) private {
+        uint256 taxAmount = amount * TAX_RATE / 100;
+        uint256 burnAmount = amount * BURN_RATE / 100;
+        uint256 transferAmount = amount - burnAmount - taxAmount;
+
+        _burn(from, burnAmount);
+        super._update(from, to, transferAmount);
+
+        bool success = _safeTransferETH(taxWallet, taxAmount);
+        if (!success) revert EthTransferFailed();
+
+        emit TransferWithTaxAndBurn(from, to, amount, burnAmount, taxAmount);
+    }
+}
