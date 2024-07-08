@@ -232,7 +232,8 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
 
         if (isLeapYear(year)) {
             if (month == 4 && day == 1) {
-                return hour == 0 && minute == 0 && second == 0 && millisecond == 0;
+                quarterStart = (hour == 0 && minute == 0 && second == 0 && millisecond == 0);
+                return quarterStart;
             }
         }
 
