@@ -85,7 +85,26 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     mapping(address user => bool isBlacklisted) private _blacklist;
 
     /// @notice Mapping of whitelisted addresses
-    mapping(address user => bool isWhitelisted) public whitelist;
+    mapping(address user => bool isWhitelisted) private _whitelist;
+
+    // On-chain metadata
+    /// @notice Official website URL
+    string public constant WEBSITE = "https://www.prosperadefi.com";
+    
+    /// @notice Official Twitter profile URL
+    string public constant TWITTER = "https://twitter.com/prosperadefi";
+    
+    /// @notice Official Discord invite URL
+    string public constant DISCORD = "https://discord.com/invite/C2RfKePcWm";
+    
+    /// @notice Official Telegram group URL
+    string public constant TELEGRAM = "https://t.me/+R_npjjJkeOBhOWU8";
+    
+    /// @notice Token description
+    string public constant DESCRIPTION = "Prospera is a utility token for the Prospera DeFi ecosystem, enabling decentralized financial operations.";
+    
+    /// @notice Token image URL
+    string public constant IMAGE = "https://amber-cheerful-woodpecker-350.mypinata.cloud/ipfs/QmWKKRsCepJRxxLEWNDNa5N1NQWVt8Y1RVbYXiaWjASaBp";
 
     // Storage slots
     // Storage slot for staking wallet
@@ -204,6 +223,17 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit WalletAddressSet("Marketing Wallet", params.marketingWallet);
         emit WalletAddressSet("Team Wallet", params.teamWallet);
         emit WalletAddressSet("Dev Wallet", params.devWallet);
+    }
+
+    /// @notice Returns the token metadata
+    /// @return website The official website URL
+    /// @return twitter The official Twitter profile URL
+    /// @return discord The official Discord invite URL
+    /// @return telegram The official Telegram group URL
+    /// @return description The token description
+    /// @return image The token image URL
+    function tokenMetadata() public pure returns (string memory website, string memory twitter, string memory discord, string memory telegram, string memory description, string memory image) {
+        return (WEBSITE, TWITTER, DISCORD, TELEGRAM, DESCRIPTION, IMAGE);
     }
 
     /// @notice Authorizes an upgrade to a new implementation
@@ -355,7 +385,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Adds an address to the whitelist
     /// @param account The address to be added
     function addToWhitelist(address account) external onlyOwner {
-        whitelist[account] = true;
+        _whitelist[account] = true;
         emit AddedToWhitelist(account);
         emit StateUpdated("whitelist", account, true);
     }
@@ -363,9 +393,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Removes an address from the whitelist
     /// @param account The address to be removed
     function removeFromWhitelist(address account) external onlyOwner {
-        whitelist[account] = false;
+        _whitelist[account] = false;
         emit RemovedFromWhitelist(account);
         emit StateUpdated("whitelist", account, false);
+    }
+
+    /// @notice Checks if an address is whitelisted
+    /// @param account The address to check
+    /// @return True if the address is whitelisted, false otherwise
+    function _isWhitelisted(address account) internal view returns (bool) {
+        return _whitelist[account];
     }
 
     /// @notice Withdraws all ETH from the contract to the owner's address
