@@ -198,8 +198,6 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         if (ethValue > totalCost) {
             payable(buyer).sendValue(ethValue - totalCost);
         }
-
-        return (tokensBought, totalCost);
     }
 
     /// @notice Buys tokens from the current ICO tier and handles transitions between tiers
@@ -259,8 +257,6 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
                 if (tier3Sold >= TIER3_TOKENS) endIco();
             }
         }
-
-        return (totalTokensBought, totalTierCost);
     }
 
     /// @notice Updates the ICO tier
@@ -290,13 +286,17 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         uint256 _tier2Sold,
         uint256 _tier3Sold
     ) {
-        return (icoActive, currentTier, tier1Sold, tier2Sold, tier3Sold);
+        _icoActive = icoActive;
+        _currentTier = currentTier;
+        _tier1Sold = tier1Sold;
+        _tier2Sold = tier2Sold;
+        _tier3Sold = tier3Sold;
     }
 
     /// @notice Gets the total amount of ETH a buyer has spent in the ICO
     /// @param buyer The address of the buyer
     /// @return amount The total amount spent by the buyer
     function getBuyerPurchaseAmount(address buyer) external view returns (uint256 amount) {
-        return _icoBuys[buyer];
+        amount = _icoBuys[buyer];
     }
 }
