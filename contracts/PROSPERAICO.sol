@@ -62,9 +62,6 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
     /// @notice Wallet address for ICO supply
     address public prosicoWallet;
 
-    /// @notice Tax rate applied during the ICO (percentage)
-    uint256 public constant ICO_TAX_RATE = 9;
-
     /// @notice Minimum amount of ETH required to participate in the ICO
     uint256 public constant MIN_ICO_BUY = 150 ether;
 
@@ -169,28 +166,24 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     /// @notice Purchases tokens during the ICO
-    /// @dev This function handles the token purchase process, including tax calculation and dynamic tier transitions
+    /// @dev This function handles the token purchase process and dynamic tier transitions
     /// @param buyer The address of the buyer
     /// @param tokenAmount The number of tokens to purchase
     /// @return tokensBought The number of tokens bought
     /// @return totalCost The total cost in ETH
     function buyTokens(address buyer, uint256 tokenAmount) external payable onlyPROSPERA nonReentrant returns (uint256 tokensBought, uint256 totalCost) {
         if (!icoActive) revert IcoNotActive();
-    
+
         uint256 ethValue = msg.value;
 
         // Check minimum and maximum buy limit
         if (ethValue < MIN_ICO_BUY) revert BelowMinIcoBuyLimit();
         if (_icoBuys[buyer] + ethValue > MAX_ICO_BUY) revert ExceedsMaxIcoBuyLimit();
 
-        // Calculate the ICO tax
-        uint256 totalTaxAmount = ethValue * ICO_TAX_RATE / 100;
-        uint256 remainingEth = ethValue - totalTaxAmount;
-
-        (tokensBought, totalCost) = buyFromCurrentTier(tokenAmount, remainingEth);
+        (tokensBought, totalCost) = buyFromCurrentTier(tokenAmount, ethValue);
 
         if (tokensBought == 0) revert InsufficientFundsForPurchase();
-        if (remainingEth < totalCost) revert IncorrectETHAmountSent();
+        if (ethValue < totalCost) revert IncorrectETHAmountSent();
 
         // Update state
         _icoBuys[buyer] += totalCost;
@@ -198,13 +191,12 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
 
         emit TokensPurchased(buyer, tokensBought, totalCost);
 
-        // Transfer ETH to ICO wallet and tax wallet
+        // Transfer ETH to ICO wallet
         payable(icoWallet).sendValue(totalCost);
-        payable(owner()).sendValue(totalTaxAmount); // Assuming owner is the tax wallet
 
-        // Return excess ETH if any
-        if (remainingEth > totalCost) {
-            payable(buyer).sendValue(remainingEth - totalCost);
+        // Refund any excess ETH to the buyer
+        if (ethValue > totalCost) {
+            payable(buyer).sendValue(ethValue - totalCost);
         }
 
         return (tokensBought, totalCost);
@@ -298,19 +290,13 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
         uint256 _tier2Sold,
         uint256 _tier3Sold
     ) {
-        _icoActive = icoActive;
-        _currentTier = currentTier;
-        _tier1Sold = tier1Sold;
-        _tier2Sold = tier2Sold;
-        _tier3Sold = tier3Sold;
-        return (_icoActive, _currentTier, _tier1Sold, _tier2Sold, _tier3Sold);
+        return (icoActive, currentTier, tier1Sold, tier2Sold, tier3Sold);
     }
 
     /// @notice Gets the total amount of ETH a buyer has spent in the ICO
     /// @param buyer The address of the buyer
     /// @return amount The total amount spent by the buyer
     function getBuyerPurchaseAmount(address buyer) external view returns (uint256 amount) {
-        amount = _icoBuys[buyer];
-        return amount;
+        return _icoBuys[buyer];
     }
 }

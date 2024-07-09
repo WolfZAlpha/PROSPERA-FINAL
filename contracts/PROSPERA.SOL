@@ -22,37 +22,40 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     uint256 private constant TOTAL_SUPPLY = 1e9 * 10**18;
 
     /// @notice Tokens allocated for staking rewards
-    uint256 private constant STAKING_SUPPLY = TOTAL_SUPPLY * 10000 / 100000;
+    uint256 private constant STAKING_SUPPLY = TOTAL_SUPPLY * 10000 / 100000; // 10%
 
     /// @notice Tokens allocated for liquidity
-    uint256 private constant LIQUIDITY_SUPPLY = TOTAL_SUPPLY * 20000 / 100000;
+    uint256 private constant LIQUIDITY_SUPPLY = TOTAL_SUPPLY * 20000 / 100000; // 20%
 
     /// @notice Tokens allocated for farming
-    uint256 private constant FARMING_SUPPLY = TOTAL_SUPPLY * 10000 / 100000;
+    uint256 private constant FARMING_SUPPLY = TOTAL_SUPPLY * 10000 / 100000; // 10%
 
     /// @notice Tokens allocated for listing on exchanges
-    uint256 private constant LISTING_SUPPLY = TOTAL_SUPPLY * 12000 / 100000;
+    uint256 private constant LISTING_SUPPLY = TOTAL_SUPPLY * 12000 / 100000; // 12%
 
     /// @notice Tokens allocated for reserves
-    uint256 private constant RESERVE_SUPPLY = TOTAL_SUPPLY * 5025 / 100000;
+    uint256 private constant RESERVE_SUPPLY = TOTAL_SUPPLY * 5025 / 100000; // 5.025%
 
     /// @notice Tokens allocated for marketing
-    uint256 private constant MARKETING_SUPPLY = TOTAL_SUPPLY * 5000 / 100000;
+    uint256 private constant MARKETING_SUPPLY = TOTAL_SUPPLY * 5000 / 100000; // 5%
 
     /// @notice Tokens allocated for team wallet
-    uint256 private constant TEAM_SUPPLY = TOTAL_SUPPLY * 11600 / 100000;
+    uint256 private constant TEAM_SUPPLY = TOTAL_SUPPLY * 11000 / 100000; // 11%
 
     /// @notice Tokens allocated for dev wallet
-    uint256 private constant DEV_SUPPLY = TOTAL_SUPPLY * 11000 / 100000;
+    uint256 private constant DEV_SUPPLY = TOTAL_SUPPLY * 11600 / 100000; // 11.6%
 
     /// @notice Tokens allocated for the ICO
-    uint256 private constant ICO_SUPPLY = TOTAL_SUPPLY * 15375 / 100000;
+    uint256 private constant ICO_SUPPLY = TOTAL_SUPPLY * 15375 / 100000; // 15.375%
 
     /// @notice Burn rate applied on token transfers (percentage)
     uint256 public constant BURN_RATE = 3;
 
     /// @notice Tax rate applied on token transfers (percentage)
     uint256 public constant TAX_RATE = 6;
+
+    /// @notice Tax rate applied during the ICO (percentage)
+    uint256 public constant ICO_TAX_RATE = 9;
 
     /// @notice USDC token used for revenue sharing
     address public usdcToken;
@@ -171,6 +174,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     error EthTransferFailed();
     error ExternalCallFailed();
     error VestedTokensCannotBeTransferred();
+    error MintingDisabled();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -203,7 +207,16 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         StorageSlot.getAddressSlot(TEAM_WALLET_SLOT).value = params.teamWallet;
         StorageSlot.getAddressSlot(DEV_WALLET_SLOT).value = params.devWallet;
 
-        _mint(params.deployerWallet, TOTAL_SUPPLY);
+        // Mint and distribute tokens
+        _mint(params.stakingWallet, STAKING_SUPPLY);
+        _mint(params.liquidityWallet, LIQUIDITY_SUPPLY);
+        _mint(params.farmingWallet, FARMING_SUPPLY);
+        _mint(params.listingWallet, LISTING_SUPPLY);
+        _mint(params.reserveWallet, RESERVE_SUPPLY);
+        _mint(params.marketingWallet, MARKETING_SUPPLY);
+        _mint(params.teamWallet, TEAM_SUPPLY);
+        _mint(params.devWallet, DEV_SUPPLY);
+        _mint(params.prosicoWallet, ICO_SUPPLY);
 
         stakingContract = params.stakingContract;
         vestingContract = params.vestingContract;
@@ -253,12 +266,12 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StateUpdated("paused", address(0), false);
     }
 
-    /// @notice Mints a specified amount of tokens to a given address
+/// @notice Mints a specified amount of tokens to a given address
+    /// @dev This function is disabled as all tokens are minted during initialization
     /// @param to The address to receive the minted tokens
     /// @param amount The number of tokens to mint
     function mint(address to, uint256 amount) external onlyOwner {
-        _mint(to, amount);
-        emit Transfer(address(0), to, amount);
+        revert MintingDisabled();
     }
 
     /// @notice Adds an address to the blacklist
@@ -367,15 +380,22 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function buyTokens(uint256 tokenAmount) external payable nonReentrant whenNotPaused {
         if (_blacklist[msg.sender]) revert BlacklistedAddress(msg.sender);
         
-        (bool success, bytes memory result) = icoContract.call{value: msg.value}(abi.encodeWithSelector(BUY_TOKENS_SELECTOR, msg.sender, tokenAmount));
+        uint256 icoTaxAmount = msg.value * ICO_TAX_RATE / 100;
+        uint256 remainingEth = msg.value - icoTaxAmount;
+
+        // Transfer ICO tax to tax wallet
+        bool taxTransferSuccess = _safeTransferETH(taxWallet, icoTaxAmount);
+        if (!taxTransferSuccess) revert EthTransferFailed();
+        
+        (bool success, bytes memory result) = icoContract.call{value: remainingEth}(abi.encodeWithSelector(BUY_TOKENS_SELECTOR, msg.sender, tokenAmount));
         if (!success) revert ExternalCallFailed();
         
         (uint256 tokensBought, uint256 ethSpent) = abi.decode(result, (uint256, uint256));
         _transfer(prosicoWallet, msg.sender, tokensBought);
         
-        if (msg.value > ethSpent) {
+        if (remainingEth > ethSpent) {
             // Refund excess ETH
-            _safeTransferETH(msg.sender, msg.value - ethSpent);
+            _safeTransferETH(msg.sender, remainingEth - ethSpent);
         }
         
         emit TokensPurchased(msg.sender, tokensBought, ethSpent);
@@ -453,8 +473,6 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         if (isVested) revert VestedTokensCannotBeTransferred();
     
         if (from != address(this) && to != address(this) && from != owner() && to != owner() && from != taxWallet && to != taxWallet) {
-            //transfer is handled by the parent _update function
-        } else {
             _handleNormalBuySell(from, to, value);
         }
     }

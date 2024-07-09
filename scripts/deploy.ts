@@ -9,15 +9,15 @@ async function main() {
   const gnosisSafeWallet = process.env.GNOSIS_SAFE_ADDRESS as string; // Gnosis Safe multi-sig wallet
   const taxWallet = "0x233AF064cc70D2d575fD8824B3682948dA3aB94F"; // Tax Wallet Address
   const stakingWallet = "0xA8d59C804456F1b56b38Fb569641210229Fe051b"; // Staking Rewards Wallet Address
-  const icoWallet = "0x04E7a54f579cb7e9D4c95a7FB7aE8c1A0181F846"; // ICO Wallet Address
+  const icoWallet = "0xc15C609c4a41D1e247389Cd1B2d8bc4DbDcd4485"; // ICO Wallet Address
   const liquidityWallet = "0x392f3afA9863baE12CDA1b1E6624E55C8c47A789"; // Liquidity Wallet Address
   const farmingWallet = "0x03275e133C6cCE9C066247FA7532D0ab86F17926"; // Farming Wallet Address
   const listingWallet = "0x63824CfF15D7D50537E7A1d47BDc762192b04538"; // Listing Wallet Address
   const reserveWallet = "0x666B354F231c6Cfd8cA5aD0944559f0420916BB5"; // Reserve Wallet Address
   const marketingWallet = "0xc0645D8968599A9C8908813174828aca4e9187cE"; // Marketing wallet address
   const teamWallet = "0x891e4ce655ea6080266b43B7aDc4878af9500353"; // Team wallet address
-  const devWallet = "0xd0eecB3E6ba57E5b15051882A19413732809c872"; // Dev wallet address
-  const prosicoWallet = "0x1234567890123456789012345678901234567890"; // Replace with actual prosico wallet address
+  const devWallet = "0x1a95B003d4bE3abb3825f9544912Dd9a6A47aaC4"; // Dev wallet address
+  const prosicoWallet = "0x18DdB071c428ea404Dd899793604EfBfb533Db09"; // prosico supply wallet
 
   // Defines the vesting wallets and types (0 for marketing, 1 for team)
   const vestingWallets = [
@@ -27,12 +27,13 @@ async function main() {
     { address: "0x87715D8cC9F32e694CB644fce3b86F4C7311aD15", vestingType: 0 }, // gt
     { address: "0x4c6A8Ff3bADe54BCFf3c63Aa84Cb8985c68F0A30", vestingType: 0 }, // linx
     { address: "0x3bda56ef07bf6f996f8e3defddde6c8109b7e7be", vestingType: 0 }, // goul
+    { address: "0x0c45809731a3E88373b63DcA6A1a19dE98843568", vestingType: 0 }, // bks
     { address: "0xB50516982524DFF3d8d563F46AD54891Aa61944E", vestingType: 1 }, // fl
     { address: "0x89D6a038D902fEAb8c506C3F392b1B91CA8461B7", vestingType: 1 }, // 7w
     { address: "0x810999FAAe498DCb4e46736c6f901DDCd51D3a01", vestingType: 1 }, // z
   ];
 
-  console.log("Deploying contracts with the Gnosis Safe as the deployer...");
+  console.log("Deploying PROSPERA contracts with the Gnosis Safe as the deployer...");
 
   // Deploy PROSPERAMath
   const MathFactory = await ethers.getContractFactory("PROSPERAMath");
@@ -74,7 +75,7 @@ async function main() {
   const vestingAddress = await vestingDeployment.getAddress();
   console.log(`PROSPERAVesting deployed to ${vestingAddress}`);
 
-  // Deploy main PROSPERA contract
+  // Deploy main PROSPERA contract (includes on-chain metadata)
   const PROSPERAFactory = await ethers.getContractFactory("PROSPERA");
   const prosperaDeployment = await defender.deployProxy(
     PROSPERAFactory,
@@ -114,18 +115,18 @@ async function main() {
   // Initialize child contracts with PROSPERA address
   const mathContract = await ethers.getContractAt("PROSPERAMath", mathAddress);
   await mathContract.initialize(prosperaAddress);
-  console.log("PROSPERAMath initialized");
+  console.log("PROSPERAMath initialized with PROSPERA address");
 
   const stakingContract = await ethers.getContractAt("PROSPERAStaking", stakingAddress);
   await stakingContract.initialize(prosperaAddress);
-  console.log("PROSPERAStaking initialized");
+  console.log("PROSPERAStaking initialized with PROSPERA address");
 
   const icoContract = await ethers.getContractAt("PROSPERAICO", icoAddress);
   await icoContract.initialize(prosperaAddress, icoWallet, prosicoWallet);
-  console.log("PROSPERAICO initialized");
+  console.log("PROSPERAICO initialized with PROSPERA address");
 
   await prosperaVesting.initialize(prosperaAddress);
-  console.log("PROSPERAVesting initialized");
+  console.log("PROSPERAVesting initialized with PROSPERA address");
 
   // Add vesting wallets with their respective types
   for (const wallet of vestingWallets) {
@@ -143,6 +144,8 @@ async function main() {
       console.log(`Ownership of ${await contract.getAddress()} transferred to Gnosis Safe wallet: ${gnosisSafeWallet}`);
     }
   }
+
+  console.log("PROSPERA deployment and initialization completed successfully.");
 }
 
 main().catch((error) => {
