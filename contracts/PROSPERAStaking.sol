@@ -5,6 +5,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /// @title PROSPERA Staking Contract
 /// @notice This contract handles staking functionality for the PROSPERA token
@@ -227,7 +228,8 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             lockupDuration: lockDuration
         });
     
-        uint256 newActiveStakers = ++activeStakers[tier];
+        uint256 newActiveStakers = Math.add(activeStakers[tier], 1);
+        activeStakers[tier] = newActiveStakers;
         emit ActiveStakersUpdated(tier, newActiveStakers);
 
         _updateCurrentCase();
@@ -250,13 +252,14 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         uint256 reward = _stakeRewards[staker];
         uint8 tier = stakeInfo.tier;
 
-        stakeInfo.amount -= unstakeAmount;
-        uint256 amountToTransfer = unstakeAmount + reward;
+        stakeInfo.amount = Math.sub(stakeInfo.amount, unstakeAmount);
+        uint256 amountToTransfer = Math.add(unstakeAmount, reward);
 
         if (stakeInfo.amount == 0) {
             delete _stakes[staker];
             delete _stakeRewards[staker];
-            uint256 newActiveStakers = --activeStakers[tier];
+            uint256 newActiveStakers = Math.sub(activeStakers[tier], 1);
+            activeStakers[tier] = newActiveStakers;
             emit ActiveStakersUpdated(tier, newActiveStakers);
             _removeStakerFromTier(tier, staker);
         } else {
@@ -281,7 +284,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         if (lockDuration < MIN_STAKE_DURATION || lockDuration > MAX_STAKE_DURATION) revert InvalidLockDuration();
 
         Stake storage stakeInfo = _stakes[staker];
-        stakeInfo.amount += lockAmount;
+        stakeInfo.amount = Math.add(stakeInfo.amount, lockAmount);
         stakeInfo.lockedUp = true;
         stakeInfo.lockupDuration = lockDuration;
         stakeInfo.timestamp = block.timestamp;
@@ -290,7 +293,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         emit StakeUpdated(staker, stakeInfo.amount, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
 
-    /// @notice Takes a snapshot to determine eligibility for quarterly revenue share
+/// @notice Takes a snapshot to determine eligibility for quarterly revenue share
     function takeSnapshot() external onlyPROSPERA nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         emit SnapshotTaken(currentTimestamp);
@@ -309,7 +312,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Updates the reward for a staker based on the current case and tier
     /// @param stakerAddress The address of the staker
     function _updateReward(address stakerAddress) private {
-        uint256 stakedDuration = (block.timestamp - _stakes[stakerAddress].timestamp) / REWARD_INTERVAL;
+        uint256 stakedDuration = Math.div(Math.sub(block.timestamp, _stakes[stakerAddress].timestamp), REWARD_INTERVAL);
         uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0;
         uint256 calculatedReward;
 
@@ -335,7 +338,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The calculated reward in tokens
     function _calculateCase0Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[0].dailyYieldPercentage[tier];
-        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return Math.mulDiv(Math.mulDiv(amount, dailyYieldDecimal, 10**18), stakedDuration, 1);
     }
 
     /// @notice Calculates the reward for Case 1 (up to 3,000 wallets)
@@ -345,7 +348,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The calculated reward in tokens
     function _calculateCase1Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[1].dailyYieldPercentage[tier];
-        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return Math.mulDiv(Math.mulDiv(amount, dailyYieldDecimal, 10**18), stakedDuration, 1);
     }
 
     /// @notice Calculates the reward for Case 2 (up to 10,000 wallets)
@@ -355,7 +358,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The calculated reward in tokens
     function _calculateCase2Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[2].dailyYieldPercentage[tier];
-        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return Math.mulDiv(Math.mulDiv(amount, dailyYieldDecimal, 10**18), stakedDuration, 1);
     }
 
     /// @notice Calculates the reward for Case 3 (up to 20,000 wallets)
@@ -365,7 +368,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The calculated reward in tokens
     function _calculateCase3Reward(uint256 amount, uint8 tier, uint256 stakedDuration) private view returns (uint256) {
         uint256 dailyYieldDecimal = cases[3].dailyYieldPercentage[tier];
-        return ((amount * dailyYieldDecimal) * stakedDuration) / 10**18;
+        return Math.mulDiv(Math.mulDiv(amount, dailyYieldDecimal, 10**18), stakedDuration, 1);
     }
 
     /// @notice Determines the tier based on the stake amount
@@ -384,7 +387,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     function _updateCurrentCase() private {
         uint256 totalStakers;
         for (uint8 i; i < TIER_COUNT; ++i) {
-            totalStakers += activeStakers[i];
+            totalStakers = Math.add(totalStakers, activeStakers[i]);
         }
 
         uint8 newCase = 3;
@@ -395,15 +398,12 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             }
         }
 
-        // Always emit an event, regardless of whether the case has changed
         emit CurrentCaseUpdated(newCase);
 
-        // Update the currentCase if it has changed
         if (newCase != currentCase) {
             currentCase = newCase;
         }
 
-        // Emit an additional event to indicate that the update process has completed
         emit CaseUpdateProcessCompleted(newCase, totalStakers);
     }
 
@@ -428,7 +428,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return Whether the staker is eligible
     function _checkEligibility(address stakerAddress, uint256 currentTimestamp) private view returns (bool) {
         Stake memory stakeInfo = _stakes[stakerAddress];
-        uint256 currentQuarterStart = currentTimestamp - (currentTimestamp % (90 days));
+        uint256 currentQuarterStart = Math.sub(currentTimestamp, Math.mod(currentTimestamp, 90 days));
 
         if (stakeInfo.lockedUp) {
             return stakeInfo.amount >= 60000 * 10**18;
@@ -457,7 +457,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     function getCurrentCaseAndTotalStakers() external view returns (uint8, uint256) {
         uint256 totalStakers;
         for (uint8 i; i < TIER_COUNT; ++i) {
-            totalStakers += activeStakers[i];
+            totalStakers = Math.add(totalStakers, activeStakers[i]);
         }
         return (currentCase, totalStakers);
     }
@@ -480,9 +480,9 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         if (startIndex >= endIndex) revert InvalidIndexRange();
         if (endIndex > stakersInTier[tier].length) revert EndIndexOutOfBounds();
 
-        address[] memory stakers = new address[](endIndex - startIndex);
+        address[] memory stakers = new address[](Math.sub(endIndex, startIndex));
         for (uint256 i = startIndex; i < endIndex; ++i) {
-            stakers[i - startIndex] = stakersInTier[tier][i];
+            stakers[Math.sub(i, startIndex)] = stakersInTier[tier][i];
         }
         return stakers;
     }

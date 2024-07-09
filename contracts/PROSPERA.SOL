@@ -10,12 +10,13 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
+
 /// @title PROSPERA Token Contract
 /// @author Prospera Development Team - Code Written By Founder/Owner: '15440397940800' , Audited/Guidance/Contributor by: '22122100.21557250' , Contributor: '298248087266945834683392000', RevShare Backed By: '1032648170521968_3341360880'
 /// @notice This contract implements the PROSPERA token with various functionalities - will be upgraded to OMNICHAIN as time moves forward
 /// @custom:security-contact security@prosperadefi.com
 contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PausableUpgradeable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
-
+    
     // Constants
 
     /// @notice Total supply of tokens

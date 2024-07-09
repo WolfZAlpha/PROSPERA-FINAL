@@ -21,16 +21,16 @@ async function main() {
 
   // Defines the vesting wallets and types (0 for marketing, 1 for team)
   const vestingWallets = [
-    { address: "0xb6b6E3a54BCAF861ac456b38D15389dC8E638450", vestingType: 0 }, // mi1
-    { address: "0x0fcD04410E6DA9339c1578C9f7aC1e48AED4B73C", vestingType: 0 }, // bns
-    { address: "0x156841B0541F11522656A8FA6d0542B737754E8e", vestingType: 0 }, // Mch
-    { address: "0x87715D8cC9F32e694CB644fce3b86F4C7311aD15", vestingType: 0 }, // gt
-    { address: "0x4c6A8Ff3bADe54BCFf3c63Aa84Cb8985c68F0A30", vestingType: 0 }, // linx
-    { address: "0x3bda56ef07bf6f996f8e3defddde6c8109b7e7be", vestingType: 0 }, // goul
-    { address: "0x0c45809731a3E88373b63DcA6A1a19dE98843568", vestingType: 0 }, // bks
-    { address: "0xB50516982524DFF3d8d563F46AD54891Aa61944E", vestingType: 1 }, // fl
-    { address: "0x89D6a038D902fEAb8c506C3F392b1B91CA8461B7", vestingType: 1 }, // 7w
-    { address: "0x810999FAAe498DCb4e46736c6f901DDCd51D3a01", vestingType: 1 }, // z
+    { address: "0xb6b6E3a54BCAF861ac456b38D15389dC8E638450", vestingType: 0, amount: ethers.parseEther("1000000") }, // mi1
+    { address: "0x0fcD04410E6DA9339c1578C9f7aC1e48AED4B73C", vestingType: 0, amount: ethers.parseEther("1000000") }, // bns
+    { address: "0x156841B0541F11522656A8FA6d0542B737754E8e", vestingType: 0, amount: ethers.parseEther("1000000") }, // Mch
+    { address: "0x87715D8cC9F32e694CB644fce3b86F4C7311aD15", vestingType: 0, amount: ethers.parseEther("1000000") }, // gt
+    { address: "0x4c6A8Ff3bADe54BCFf3c63Aa84Cb8985c68F0A30", vestingType: 0, amount: ethers.parseEther("1000000") }, // linx
+    { address: "0x3bda56ef07bf6f996f8e3defddde6c8109b7e7be", vestingType: 0, amount: ethers.parseEther("1000000") }, // goul
+    { address: "0x0c45809731a3E88373b63DcA6A1a19dE98843568", vestingType: 0, amount: ethers.parseEther("1000000") }, // bks
+    { address: "0xB50516982524DFF3d8d563F46AD54891Aa61944E", vestingType: 1, amount: ethers.parseEther("2000000") }, // fl
+    { address: "0x89D6a038D902fEAb8c506C3F392b1B91CA8461B7", vestingType: 1, amount: ethers.parseEther("2000000") }, // 7w
+    { address: "0x810999FAAe498DCb4e46736c6f901DDCd51D3a01", vestingType: 1, amount: ethers.parseEther("2000000") }, // z
   ];
 
   console.log("Deploying PROSPERA contracts with the Gnosis Safe as the deployer...");
@@ -128,11 +128,32 @@ async function main() {
   await prosperaVesting.initialize(prosperaAddress);
   console.log("PROSPERAVesting initialized with PROSPERA address");
 
-  // Add vesting wallets with their respective types
+  // Verify token minting and distribution
+  const wallets = [
+    { name: "Staking", address: stakingWallet },
+    { name: "Liquidity", address: liquidityWallet },
+    { name: "Farming", address: farmingWallet },
+    { name: "Listing", address: listingWallet },
+    { name: "Reserve", address: reserveWallet },
+    { name: "Marketing", address: marketingWallet },
+    { name: "Team", address: teamWallet },
+    { name: "Dev", address: devWallet },
+    { name: "Prosico", address: prosicoWallet },
+  ];
+
+  for (const wallet of wallets) {
+    const balance = await prospera.balanceOf(wallet.address);
+    console.log(`${wallet.name} wallet balance: ${ethers.formatEther(balance)} PROS`);
+    if (balance.isZero()) {
+      console.error(`Warning: ${wallet.name} wallet has zero balance!`);
+    }
+  }
+
+  // Add vesting wallets with their respective types and amounts
   for (const wallet of vestingWallets) {
-    const tx = await prospera.addToVesting(wallet.address, 0, wallet.vestingType);
+    const tx = await prospera.addToVesting(wallet.address, wallet.amount, wallet.vestingType);
     await tx.wait();
-    console.log(`Added ${wallet.address} to vesting schedule with type ${wallet.vestingType}`);
+    console.log(`Added ${wallet.address} to vesting schedule with type ${wallet.vestingType} and amount ${ethers.formatEther(wallet.amount)} PROS`);
   }
 
   // Transfer ownership of all contracts to the Gnosis Safe wallet
@@ -144,6 +165,10 @@ async function main() {
       console.log(`Ownership of ${await contract.getAddress()} transferred to Gnosis Safe wallet: ${gnosisSafeWallet}`);
     }
   }
+
+  // Verify total supply
+  const totalSupply = await prospera.totalSupply();
+  console.log(`Total supply: ${ethers.formatEther(totalSupply)} PROS`);
 
   console.log("PROSPERA deployment and initialization completed successfully.");
 }

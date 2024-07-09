@@ -9,7 +9,6 @@ import {ABDKMath64x64} from "abdk-libraries-solidity/ABDKMath64x64.sol";
 
 /// @title PROSPERA Math Contract
 /// @notice This contract handles complex mathematical operations for the PROSPERA ecosystem
-/// @dev This contract is upgradeable and uses the UUPS proxy pattern
 /// @custom:security-contact security@prosperadefi.com
 contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
 

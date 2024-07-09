@@ -9,7 +9,6 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /// @title PROSPERA ICO Contract
 /// @notice This contract handles ICO functionality for the PROSPERA token
-/// @dev This contract is upgradeable and uses the UUPS proxy pattern
 /// @custom:security-contact security@prosperadefi.com
 contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable {
     using Address for address payable;

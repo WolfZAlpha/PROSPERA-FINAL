@@ -18,7 +18,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true, // Enable optimizer
-            runs: 25, // Optimize for how many times you intend to run the code
+            runs: 200, // Optimize for how many times you intend to run the code
             details: {
               yul: true, // Enable Yul optimizer
               yulDetails: {
@@ -40,9 +40,9 @@ const config: HardhatUserConfig = {
     apiSecret: process.env.DEFENDER_SECRET as string, // Defender API secret from environment variables
   },
   networks: {
-    sepolia: {
-      url: "https://arb1.arbitrum.io/rpc", // URL for the Sepolia network
-      chainId: 42161, // Chain ID for the Sepolia network
+    arbitrum: {
+      url: "https://arb1.arbitrum.io/rpc", 
+      chainId: 42161, // Chaain ID for Arbs
     },
   },
 };
