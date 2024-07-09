@@ -89,11 +89,13 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Emitted when a user's snapshot is taken
     event UserSnapshotTaken(address indexed user, bool isEligible);
 
-    /// @notice Emitted when the current case is updated or checked
-    /// @param oldCase The previous case before the update
-    /// @param newCase The new (or current) case after the update
+    /// @notice Emitted when the current case is updated
+    event CurrentCaseUpdated(uint8 indexed currentCase);
+
+    /// @notice Emitted when the case update process is completed
+    /// @param currentCase The current case after the update
     /// @param totalStakers The total number of stakers across all tiers
-    event CurrentCaseUpdated(uint8 indexed oldCase, uint8 indexed newCase, uint256 totalStakers);
+    event CaseUpdateProcessCompleted(uint8 indexed currentCase, uint256 totalStakers);
 
     /// @notice Emitted when a user's reward is updated
     event RewardUpdated(address indexed user, uint256 reward);
@@ -393,11 +395,16 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             }
         }
 
-        // Emit an event for the case update, regardless of whether it changed
-        emit CurrentCaseUpdated(currentCase, newCase, totalStakers);
+        // Always emit an event, regardless of whether the case has changed
+        emit CurrentCaseUpdated(newCase);
 
-        // Update the currentCase
-        currentCase = newCase;
+        // Update the currentCase if it has changed
+        if (newCase != currentCase) {
+            currentCase = newCase;
+        }
+
+        // Emit an additional event to indicate that the update process has completed
+        emit CaseUpdateProcessCompleted(newCase, totalStakers);
     }
 
     /// @notice Removes a staker from a tier
