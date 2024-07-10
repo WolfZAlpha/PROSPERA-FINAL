@@ -63,9 +63,6 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Tier limits
     uint256[TIER_COUNT] public tierLimits = [57143, 200000, 500000, 1500000, 10000000, 50000000];
 
-    /// @notice Multiplier in basis points for each tier
-    uint8[TIER_COUNT] public tierBonuses = [50, 50, 150, 175, 100, 125, 175];
-
     /// @notice List of cases for staking rewards
     Case[4] public cases;
 
@@ -228,7 +225,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
             lockupDuration: lockDuration
         });
     
-        uint256 newActiveStakers = Math.add(activeStakers[tier], 1);
+        uint256 newActiveStakers = _add(activeStakers[tier], 1);
         activeStakers[tier] = newActiveStakers;
         emit ActiveStakersUpdated(tier, newActiveStakers);
 
@@ -252,13 +249,13 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         uint256 reward = _stakeRewards[staker];
         uint8 tier = stakeInfo.tier;
 
-        stakeInfo.amount = Math.sub(stakeInfo.amount, unstakeAmount);
-        uint256 amountToTransfer = Math.add(unstakeAmount, reward);
+        stakeInfo.amount = _sub(stakeInfo.amount, unstakeAmount);
+        uint256 amountToTransfer = _add(unstakeAmount, reward);
 
         if (stakeInfo.amount == 0) {
             delete _stakes[staker];
             delete _stakeRewards[staker];
-            uint256 newActiveStakers = Math.sub(activeStakers[tier], 1);
+            uint256 newActiveStakers = _sub(activeStakers[tier], 1);
             activeStakers[tier] = newActiveStakers;
             emit ActiveStakersUpdated(tier, newActiveStakers);
             _removeStakerFromTier(tier, staker);
@@ -284,7 +281,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         if (lockDuration < MIN_STAKE_DURATION || lockDuration > MAX_STAKE_DURATION) revert InvalidLockDuration();
 
         Stake storage stakeInfo = _stakes[staker];
-        stakeInfo.amount = Math.add(stakeInfo.amount, lockAmount);
+        stakeInfo.amount = _add(stakeInfo.amount, lockAmount);
         stakeInfo.lockedUp = true;
         stakeInfo.lockupDuration = lockDuration;
         stakeInfo.timestamp = block.timestamp;
@@ -293,7 +290,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         emit StakeUpdated(staker, stakeInfo.amount, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
 
-/// @notice Takes a snapshot to determine eligibility for quarterly revenue share
+    /// @notice Takes a snapshot to determine eligibility for quarterly revenue share
     function takeSnapshot() external onlyPROSPERA nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         emit SnapshotTaken(currentTimestamp);
@@ -312,7 +309,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Updates the reward for a staker based on the current case and tier
     /// @param stakerAddress The address of the staker
     function _updateReward(address stakerAddress) private {
-        uint256 stakedDuration = Math.div(Math.sub(block.timestamp, _stakes[stakerAddress].timestamp), REWARD_INTERVAL);
+        uint256 stakedDuration = _div(_sub(block.timestamp, _stakes[stakerAddress].timestamp), REWARD_INTERVAL);
         uint8 stakerTier = _stakes[stakerAddress].lockedUp ? _stakes[stakerAddress].tier : 0;
         uint256 calculatedReward;
 
@@ -387,7 +384,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     function _updateCurrentCase() private {
         uint256 totalStakers;
         for (uint8 i; i < TIER_COUNT; ++i) {
-            totalStakers = Math.add(totalStakers, activeStakers[i]);
+            totalStakers = _add(totalStakers, activeStakers[i]);
         }
 
         uint8 newCase = 3;
@@ -428,7 +425,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return Whether the staker is eligible
     function _checkEligibility(address stakerAddress, uint256 currentTimestamp) private view returns (bool) {
         Stake memory stakeInfo = _stakes[stakerAddress];
-        uint256 currentQuarterStart = Math.sub(currentTimestamp, Math.mod(currentTimestamp, 90 days));
+        uint256 currentQuarterStart = _sub(currentTimestamp, _mod(currentTimestamp, 90 days));
 
         if (stakeInfo.lockedUp) {
             return stakeInfo.amount >= 60000 * 10**18;
@@ -457,7 +454,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     function getCurrentCaseAndTotalStakers() external view returns (uint8, uint256) {
         uint256 totalStakers;
         for (uint8 i; i < TIER_COUNT; ++i) {
-            totalStakers = Math.add(totalStakers, activeStakers[i]);
+            totalStakers = _add(totalStakers, activeStakers[i]);
         }
         return (currentCase, totalStakers);
     }
@@ -480,9 +477,9 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         if (startIndex >= endIndex) revert InvalidIndexRange();
         if (endIndex > stakersInTier[tier].length) revert EndIndexOutOfBounds();
 
-        address[] memory stakers = new address[](Math.sub(endIndex, startIndex));
+        address[] memory stakers = new address[](_sub(endIndex, startIndex));
         for (uint256 i = startIndex; i < endIndex; ++i) {
-            stakers[Math.sub(i, startIndex)] = stakersInTier[tier][i];
+            stakers[_sub(i, startIndex)] = stakersInTier[tier][i];
         }
         return stakers;
     }
@@ -494,5 +491,55 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     function isStakerInTier(address staker, uint8 tier) external view returns (bool) {
         if (tier >= TIER_COUNT) revert InvalidTier(tier);
         return _stakes[staker].tier == tier;
+    }
+
+    /// @notice Safely adds two numbers
+    /// @param a The first number
+    /// @param b The second number
+    /// @return The sum of a and b
+    function _add(uint256 a, uint256 b) private pure returns (uint256) {
+        (bool success, uint256 result) = Math.tryAdd(a, b);
+        require(success, "Addition overflow");
+        return result;
+    }
+
+    /// @notice Safely subtracts two numbers
+    /// @param a The first number
+    /// @param b The second number
+    /// @return The difference between a and b
+    function _sub(uint256 a, uint256 b) private pure returns (uint256) {
+        (bool success, uint256 result) = Math.trySub(a, b);
+        require(success, "Subtraction underflow");
+        return result;
+    }
+
+    /// @notice Safely multiplies two numbers
+    /// @param a The first number
+    /// @param b The second number
+    /// @return The product of a and b
+    function _mul(uint256 a, uint256 b) private pure returns (uint256) {
+        (bool success, uint256 result) = Math.tryMul(a, b);
+        require(success, "Multiplication overflow");
+        return result;
+    }
+
+    /// @notice Safely divides two numbers
+    /// @param a The first number
+    /// @param b The second number
+    /// @return The quotient of a divided by b
+    function _div(uint256 a, uint256 b) private pure returns (uint256) {
+        (bool success, uint256 result) = Math.tryDiv(a, b);
+        require(success, "Division by zero");
+        return result;
+    }
+
+    /// @notice Safely calculates the modulus of two numbers
+    /// @param a The first number
+    /// @param b The second number
+    /// @return The remainder of a divided by b
+    function _mod(uint256 a, uint256 b) private pure returns (uint256) {
+        (bool success, uint256 result) = Math.tryMod(a, b);
+        require(success, "Modulus by zero");
+        return result;
     }
 }
