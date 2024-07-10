@@ -203,14 +203,15 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @param timestamp The timestamp to adjust
     /// @return adjustedTimestamp The timestamp adjusted for leap seconds
     function adjustForLeapSeconds(uint256 timestamp) public view returns (uint256 adjustedTimestamp) {
-        uint256 leapSecondsCount = 0;
+        uint256 leapSecondsCount;
         uint256 leapSecondsLength = leapSeconds.length;
-        for (uint256 i = 0; i < leapSecondsLength; i++) {
+        for (uint256 i; i < leapSecondsLength;) {
             if (timestamp > leapSeconds[i]) {
-                leapSecondsCount++;
+                ++leapSecondsCount;
             } else {
                 break;
             }
+            ++i;
         }   
         adjustedTimestamp = timestamp - leapSecondsCount;
     }
