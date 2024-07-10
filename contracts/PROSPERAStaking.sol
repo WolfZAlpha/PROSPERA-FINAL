@@ -143,6 +143,21 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Error for end index out of bounds
     error EndIndexOutOfBounds();
 
+    /// @notice Error for addition overflow
+    error AdditionOverflow();
+
+    /// @notice Error for subtraction underflow
+    error SubtractionUnderflow();
+
+    /// @notice Error for multiplication overflow
+    error MultiplicationOverflow();
+
+    /// @notice Error for division by zero
+    error DivisionByZero();
+
+    /// @notice Error for modulus by zero
+    error ModulusByZero();
+
     /// @notice Ensures that only the PROSPERA contract can call the function
     modifier onlyPROSPERA() {
         if (msg.sender != prosperaContract) revert NotPROSPERAContract();
@@ -290,7 +305,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         emit StakeUpdated(staker, stakeInfo.amount, stakeInfo.tier, stakeInfo.lockedUp, stakeInfo.lockupDuration);
     }
 
-    /// @notice Takes a snapshot to determine eligibility for quarterly revenue share
+/// @notice Takes a snapshot to determine eligibility for quarterly revenue share
     function takeSnapshot() external onlyPROSPERA nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         emit SnapshotTaken(currentTimestamp);
@@ -499,7 +514,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The sum of a and b
     function _add(uint256 a, uint256 b) private pure returns (uint256) {
         (bool success, uint256 result) = Math.tryAdd(a, b);
-        require(success, "Addition overflow");
+        if (!success) revert AdditionOverflow();
         return result;
     }
 
@@ -509,7 +524,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The difference between a and b
     function _sub(uint256 a, uint256 b) private pure returns (uint256) {
         (bool success, uint256 result) = Math.trySub(a, b);
-        require(success, "Subtraction underflow");
+        if (!success) revert SubtractionUnderflow();
         return result;
     }
 
@@ -519,7 +534,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The product of a and b
     function _mul(uint256 a, uint256 b) private pure returns (uint256) {
         (bool success, uint256 result) = Math.tryMul(a, b);
-        require(success, "Multiplication overflow");
+        if (!success) revert MultiplicationOverflow();
         return result;
     }
 
@@ -529,7 +544,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The quotient of a divided by b
     function _div(uint256 a, uint256 b) private pure returns (uint256) {
         (bool success, uint256 result) = Math.tryDiv(a, b);
-        require(success, "Division by zero");
+        if (!success) revert DivisionByZero();
         return result;
     }
 
@@ -539,7 +554,7 @@ contract PROSPERAStaking is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return The remainder of a divided by b
     function _mod(uint256 a, uint256 b) private pure returns (uint256) {
         (bool success, uint256 result) = Math.tryMod(a, b);
-        require(success, "Modulus by zero");
+        if (!success) revert ModulusByZero();
         return result;
     }
 }
