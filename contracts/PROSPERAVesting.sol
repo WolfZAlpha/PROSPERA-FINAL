@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PROPRIETARY
+// SPDX-License-Identifier: PROPRIETARY - PROSPERAVesting.sol child contract
 pragma solidity 0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -86,6 +86,9 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @notice Error for no tokens to release
     error NoTokensToRelease();
 
+    /// @notice Error for invalid amount
+    error InvalidAmount();
+
     /// @notice Ensures that only the PROSPERA contract can call the function
     modifier onlyPROSPERA() {
         if (msg.sender != prosperaToken) revert CallerNotProsperaContract();
@@ -124,6 +127,7 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
     /// @return True if the address was successfully added to the vesting schedule
     function addToVesting(address account, uint256 amount, uint8 vestingType) external onlyPROSPERA nonReentrant returns (bool) {
         if (account == address(0)) revert InvalidAddress();
+        if (amount == 0) revert InvalidAmount();  
 
         uint256 startTime = block.timestamp;
         uint256 endTime;
@@ -169,25 +173,37 @@ contract PROSPERAVesting is Initializable, OwnableUpgradeable, ReentrancyGuardUp
         }
     }
 
-    /// @notice Releases vested tokens for an address
+    /// @notice Releases vested tokens for the given account
     /// @dev Can only be called by the PROSPERA contract
-    /// @param account The address to release tokens for
+    /// @param account The address for which to release tokens
     /// @return The amount of tokens released
-    function releaseVestedTokens(address account) external onlyPROSPERA nonReentrant returns (uint256) {
+    function _releaseVestedTokens(address account) private returns (uint256) {
+        // Check
+        if (account == address(0)) revert InvalidAddress();
         Vesting storage vesting = vestingSchedules[account];
         if (!vesting.active) revert VestingNotActive();
-        
+
         uint256 amountToRelease = _vestedAmount(account);
         if (amountToRelease == 0) revert NoTokensToRelease();
 
+        // Effect
         vesting.releasedAmount += amountToRelease;
         vesting.active = vesting.releasedAmount < vesting.totalAmount;
 
+        // Emit events
         emit VestingReleased(account, amountToRelease);
         emit VestingUpdated(account, vesting.active, vesting.releasedAmount);
         emit VestingScheduleUpdated(account, vesting);
 
         return amountToRelease;
+    }
+
+    /// @notice Public function to release vested tokens, can only be called by PROSPERA contract
+    /// @param account The address for which to release tokens
+    /// @return The amount of tokens released
+    function releaseVestedTokens(address account) external onlyPROSPERA nonReentrant returns (uint256) {
+        if (account == address(0)) revert InvalidAddress();
+        return _releaseVestedTokens(account);
     }
 
     /// @notice Checks if a token transfer is allowed based on vesting schedule

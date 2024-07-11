@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PROPRIETARY
+// SPDX-License-Identifier: PROPRIETARY - PROSPERA.sol main contract
 pragma solidity 0.8.20;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -175,6 +175,14 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     error ExternalCallFailed();
     error VestedTokensCannotBeTransferred();
     error MintingDisabled();
+    error StakingEnableFailure();
+    error StakeFailure();
+    error UnstakeFailure();
+    error LockTokensFailure();
+    error SnapshotFailure();
+    error AddToVestingFailure();
+    error BuyTokensFailure();
+    error NoTokensToRelease();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -260,13 +268,13 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         emit StateUpdated("paused", address(0), true);
     }
 
-    /// @notice Unpauses all token transfers
+/// @notice Unpauses all token transfers
     function unpause() external onlyOwner {
         _unpause();
         emit StateUpdated("paused", address(0), false);
     }
 
-/// @notice Mints a specified amount of tokens to a given address
+    /// @notice Mints a specified amount of tokens to a given address
     /// @dev This function is disabled as all tokens are minted during initialization
     /// @param to The address to receive the minted tokens
     /// @param amount The number of tokens to mint
@@ -295,8 +303,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Enables or disables staking
     /// @param _enabled The new staking status (true to enable, false to disable)
     function enableStaking(bool _enabled) external onlyOwner {
-        (bool success, ) = stakingContract.call(abi.encodeWithSelector(ENABLE_STAKING_SELECTOR, _enabled));
+        (bool success, bytes memory returnData) = stakingContract.call(abi.encodeWithSelector(ENABLE_STAKING_SELECTOR, _enabled));
         if (!success) revert ExternalCallFailed();
+        bool result = abi.decode(returnData, (bool));
+        if (!result) revert StakingEnableFailure();
         emit StakingEnabled(_enabled);
         emit StateUpdated("isStakingEnabled", address(0), _enabled);
     }
@@ -310,8 +320,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         
         _transfer(msg.sender, stakingContract, stakeAmount);
         
-        (bool success, ) = stakingContract.call(abi.encodeWithSelector(STAKE_SELECTOR, msg.sender, stakeAmount, isLockedUp, lockDuration));
+        (bool success, bytes memory returnData) = stakingContract.call(abi.encodeWithSelector(STAKE_SELECTOR, msg.sender, stakeAmount, isLockedUp, lockDuration));
         if (!success) revert ExternalCallFailed();
+        bool stakeSuccess = abi.decode(returnData, (bool));
+        if (!stakeSuccess) revert StakeFailure();
         
         emit Staked(msg.sender, stakeAmount, stakeAmount);
         emit StateUpdated("stake", msg.sender, true);
@@ -325,7 +337,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         (bool success, bytes memory result) = stakingContract.call(abi.encodeWithSelector(UNSTAKE_SELECTOR, msg.sender, unstakeAmount));
         if (!success) revert ExternalCallFailed();
         
-        uint256 amountToTransfer = abi.decode(result, (uint256));
+        (bool unstakeSuccess, uint256 amountToTransfer) = abi.decode(result, (bool, uint256));
+        if (!unstakeSuccess) revert UnstakeFailure();
+        
         _transfer(stakingContract, msg.sender, amountToTransfer);
         
         emit Unstaked(msg.sender, unstakeAmount, amountToTransfer);
@@ -338,8 +352,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     function lockTokens(uint256 lockAmount, uint256 lockDuration) external nonReentrant whenNotPaused {
         if (_blacklist[msg.sender]) revert BlacklistedAddress(msg.sender);
         
-        (bool success, ) = stakingContract.call(abi.encodeWithSelector(LOCK_TOKENS_SELECTOR, msg.sender, lockAmount, lockDuration));
+        (bool success, bytes memory returnData) = stakingContract.call(abi.encodeWithSelector(LOCK_TOKENS_SELECTOR, msg.sender, lockAmount, lockDuration));
         if (!success) revert ExternalCallFailed();
+        bool lockSuccess = abi.decode(returnData, (bool));
+        if (!lockSuccess) revert LockTokensFailure();
         
         emit TokensLocked(msg.sender, lockAmount, lockDuration);
         emit StateUpdated("lockTokens", msg.sender, true);
@@ -347,8 +363,10 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Takes a snapshot to determine eligibility for quarterly revenue share
     function takeSnapshot() external nonReentrant {
-        (bool success, ) = stakingContract.call(abi.encodeWithSelector(TAKE_SNAPSHOT_SELECTOR));
+        (bool success, bytes memory returnData) = stakingContract.call(abi.encodeWithSelector(TAKE_SNAPSHOT_SELECTOR));
         if (!success) revert ExternalCallFailed();
+        bool snapshotSuccess = abi.decode(returnData, (bool));
+        if (!snapshotSuccess) revert SnapshotFailure();
         emit SnapshotTaken(block.timestamp);
     }
 
@@ -360,19 +378,26 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         if (account == address(0)) revert InvalidAddress();
         if (balanceOf(account) < amount) revert InsufficientBalance();
 
-        (bool success, ) = vestingContract.call(abi.encodeWithSelector(ADD_TO_VESTING_SELECTOR, account, amount, vestingType));
+        (bool success, bytes memory returnData) = vestingContract.call(abi.encodeWithSelector(ADD_TO_VESTING_SELECTOR, account, amount, vestingType));
         if (!success) revert ExternalCallFailed();
+        bool vestingSuccess = abi.decode(returnData, (bool));
+        if (!vestingSuccess) revert AddToVestingFailure();
     }
 
-    /// @notice Releases vested tokens for an address
-    /// @param account The address to release tokens for
-    function releaseVestedTokens(address account) external {
-        (bool success, bytes memory result) = vestingContract.call(abi.encodeWithSelector(RELEASE_VESTED_TOKENS_SELECTOR, account));
+    /// @notice Releases vested tokens for the owner
+    function releaseVestedTokens() external onlyOwner nonReentrant {
+        // Check
+        (bool success, bytes memory result) = vestingContract.call(abi.encodeWithSelector(RELEASE_VESTED_TOKENS_SELECTOR, msg.sender));
         if (!success) revert ExternalCallFailed();
         
         uint256 amountToRelease = abi.decode(result, (uint256));
-        _transfer(vestingContract, account, amountToRelease);
-        emit VestingReleased(account);
+        if (amountToRelease == 0) revert NoTokensToRelease();
+
+        // Effect
+        emit VestingReleased(msg.sender);
+
+        // Interaction
+        _transfer(vestingContract, msg.sender, amountToRelease);
     }
 
     /// @notice Purchases tokens during the ICO
@@ -390,7 +415,9 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
         (bool success, bytes memory result) = icoContract.call{value: remainingEth}(abi.encodeWithSelector(BUY_TOKENS_SELECTOR, msg.sender, tokenAmount));
         if (!success) revert ExternalCallFailed();
         
-        (uint256 tokensBought, uint256 ethSpent) = abi.decode(result, (uint256, uint256));
+        (bool buySuccess, uint256 tokensBought, uint256 ethSpent) = abi.decode(result, (bool, uint256, uint256));
+        if (!buySuccess) revert BuyTokensFailure();
+        
         _transfer(prosicoWallet, msg.sender, tokensBought);
         
         if (remainingEth > ethSpent) {
@@ -405,6 +432,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Adds an address to the whitelist
     /// @param account The address to be added
     function addToWhitelist(address account) external onlyOwner {
+        if (account == address(0)) revert InvalidAddress();
         _whitelist[account] = true;
         emit AddedToWhitelist(account);
         emit StateUpdated("whitelist", account, true);
@@ -413,6 +441,7 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
     /// @notice Removes an address from the whitelist
     /// @param account The address to be removed
     function removeFromWhitelist(address account) external onlyOwner {
+        if (account == address(0)) revert InvalidAddress();
         _whitelist[account] = false;
         emit RemovedFromWhitelist(account);
         emit StateUpdated("whitelist", account, false);

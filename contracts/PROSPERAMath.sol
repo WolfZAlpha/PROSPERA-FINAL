@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PROPRIETARY
+// SPDX-License-Identifier: PROPRIETARY - PROSPERAMath.sol child contract
 pragma solidity 0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -103,7 +103,7 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
                 Int512(0, int256(86400))
             ),
             Int512(0, int256(2440588))
-        );
+        );  
 
         Int512 memory j = addInt512(julianDay, Int512(0, int256(32044)));
         Int512 memory g = divideInt512(j, Int512(0, int256(146097)));
@@ -203,15 +203,14 @@ contract PROSPERAMath is Initializable, OwnableUpgradeable, ReentrancyGuardUpgra
     /// @param timestamp The timestamp to adjust
     /// @return adjustedTimestamp The timestamp adjusted for leap seconds
     function adjustForLeapSeconds(uint256 timestamp) public view returns (uint256 adjustedTimestamp) {
-        uint256 leapSecondsCount;
+        uint256 leapSecondsCount = 0;
         uint256 leapSecondsLength = leapSeconds.length;
-        for (uint256 i; i < leapSecondsLength;) {
+        for (uint256 i = 0; i < leapSecondsLength; ++i) {  // Changed to ++i for gas efficiency
             if (timestamp > leapSeconds[i]) {
                 ++leapSecondsCount;
             } else {
                 break;
             }
-            ++i;
         }   
         adjustedTimestamp = timestamp - leapSecondsCount;
     }

@@ -6,10 +6,6 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-/**
- * @notice Hardhat User Configuration
- * @dev This configuration file sets up the necessary compilers, optimizations, and network settings for the Hardhat environment
- */
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [
@@ -18,7 +14,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true, // Enable optimizer
-            runs: 200, // Optimize for how many times you intend to run the code
+            runs: 200, 
             details: {
               yul: true, // Enable Yul optimizer
               yulDetails: {
@@ -32,8 +28,8 @@ const config: HardhatUserConfig = {
     ],
   },
   typechain: {
-    outDir: "typechain", // Directory to output the TypeChain generated files
-    target: "ethers-v6", // Target framework for TypeChain
+    outDir: "typechain", 
+    target: "ethers-v6", 
   },
   defender: {
     apiKey: process.env.DEFENDER_KEY as string, // Defender API key from environment variables
@@ -42,7 +38,7 @@ const config: HardhatUserConfig = {
   networks: {
     arbitrum: {
       url: "https://arb1.arbitrum.io/rpc", 
-      chainId: 42161, // Chaain ID for Arbs
+      chainId: 42161,
     },
   },
 };

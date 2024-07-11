@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PROPRIETARY
+// SPDX-License-Identifier: PROPRIETARY - PROSPERAICO.sol child contract
 pragma solidity 0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -129,6 +129,12 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
     /// @notice Error for invalid address
     error InvalidAddress();
 
+    /// @notice Error for failed ETH transfer to ICO wallet
+    error EthTransferFailed();
+
+    /// @notice Error for failed ETH refund to buyer
+    error EthRefundFailed();
+
     /// @notice Ensures that only the PROSPERA contract can call the function
     modifier onlyPROSPERA() {
         if (msg.sender != prosperaContract) revert NotProsperaContract();
@@ -171,32 +177,32 @@ contract PROSPERAICO is Initializable, OwnableUpgradeable, ReentrancyGuardUpgrad
     /// @return tokensBought The number of tokens bought
     /// @return totalCost The total cost in ETH
     function buyTokens(address buyer, uint256 tokenAmount) external payable onlyPROSPERA nonReentrant returns (uint256 tokensBought, uint256 totalCost) {
+    
+        // Checks
         if (!icoActive) revert IcoNotActive();
-
         uint256 ethValue = msg.value;
-
-        // Check minimum and maximum buy limit
         if (ethValue < MIN_ICO_BUY) revert BelowMinIcoBuyLimit();
         if (_icoBuys[buyer] + ethValue > MAX_ICO_BUY) revert ExceedsMaxIcoBuyLimit();
 
+        // Effects
         (tokensBought, totalCost) = buyFromCurrentTier(tokenAmount, ethValue);
-
         if (tokensBought == 0) revert InsufficientFundsForPurchase();
         if (ethValue < totalCost) revert IncorrectETHAmountSent();
 
-        // Update state
         _icoBuys[buyer] += totalCost;
-        emit IcoBuyUpdated(buyer, _icoBuys[buyer]);
 
-        emit TokensPurchased(buyer, tokensBought, totalCost);
+        // Interactions
+        (bool success, ) = payable(icoWallet).call{value: totalCost}("");
+        if (!success) revert EthTransferFailed();
 
-        // Transfer ETH to ICO wallet
-        payable(icoWallet).sendValue(totalCost);
-
-        // Refund any excess ETH to the buyer
         if (ethValue > totalCost) {
-            payable(buyer).sendValue(ethValue - totalCost);
+            (success, ) = payable(buyer).call{value: ethValue - totalCost}("");
+            if (!success) revert EthRefundFailed();
         }
+
+        // Events
+        emit IcoBuyUpdated(buyer, _icoBuys[buyer]);
+        emit TokensPurchased(buyer, tokensBought, totalCost);
     }
 
     /// @notice Buys tokens from the current ICO tier and handles transitions between tiers
