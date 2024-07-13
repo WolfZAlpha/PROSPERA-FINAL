@@ -1,5 +1,6 @@
-import { ethers, defender } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import * as dotenv from "dotenv";
+import * as fs from 'fs';
 
 dotenv.config();
 
@@ -34,99 +35,92 @@ async function main() {
     { address: "0x1a95B003d4bE3abb3825f9544912Dd9a6A47aaC4", vestingType: 1, amount: ethers.parseEther("60000000") },
   ];
 
-  console.log("Deploying PROSPERA contracts with the Gnosis Safe as the deployer...");
+  console.log("Deploying PROSPERA contracts with a regular deployer account...");
 
-  // Deploy PROSPERAMath
+  const [deployer] = await ethers.getSigners();
+  console.log("Deploying contracts with the account:", deployer.address);
+
+  async function deployAndSaveProxy(name: string, factory: any, args: any[] = [], initializer = 'initialize') {
+    console.log(`Deploying ${name} with args:`, args);
+    let contract;
+    try {
+      contract = await upgrades.deployProxy(factory, args, { initializer: initializer });
+      await contract.waitForDeployment();
+      const address = await contract.getAddress();
+      console.log(`${name} deployed to ${address}`);
+      return { contract, address };
+    } catch (error) {
+      console.error(`Error deploying ${name}:`, error);
+      throw error;
+    }
+  }
+
+  // Deploy PROSPERAMath without initialization
   const MathFactory = await ethers.getContractFactory("PROSPERAMath");
-  const mathDeployment = await defender.deployProxy(MathFactory, [], {
-    initializer: "initialize",
-    redeployImplementation: "always",
-  });
-  await mathDeployment.waitForDeployment();
-  const mathAddress = await mathDeployment.getAddress();
+  const mathContract = await upgrades.deployProxy(MathFactory, [], { initializer: false });
+  await mathContract.waitForDeployment();
+  const mathAddress = await mathContract.getAddress();
   console.log(`PROSPERAMath deployed to ${mathAddress}`);
 
-  // Deploy PROSPERAStaking
+  // Deploy PROSPERAStaking without initialization
   const StakingFactory = await ethers.getContractFactory("PROSPERAStaking");
-  const stakingDeployment = await defender.deployProxy(StakingFactory, [], {
-    initializer: "initialize",
-    redeployImplementation: "always",
-  });
-  await stakingDeployment.waitForDeployment();
-  const stakingAddress = await stakingDeployment.getAddress();
+  const stakingContract = await upgrades.deployProxy(StakingFactory, [], { initializer: false });
+  await stakingContract.waitForDeployment();
+  const stakingAddress = await stakingContract.getAddress();
   console.log(`PROSPERAStaking deployed to ${stakingAddress}`);
 
-  // Deploy PROSPERAICO
+  // Deploy PROSPERAICO without initialization
   const ICOFactory = await ethers.getContractFactory("PROSPERAICO");
-  const icoDeployment = await defender.deployProxy(ICOFactory, [], {
-    initializer: "initialize",
-    redeployImplementation: "always",
-  });
-  await icoDeployment.waitForDeployment();
-  const icoAddress = await icoDeployment.getAddress();
+  const icoContract = await upgrades.deployProxy(ICOFactory, [], { initializer: false });
+  await icoContract.waitForDeployment();
+  const icoAddress = await icoContract.getAddress();
   console.log(`PROSPERAICO deployed to ${icoAddress}`);
 
-  // Deploy PROSPERAVesting
+  // Deploy PROSPERAVesting without initialization
   const VestingFactory = await ethers.getContractFactory("PROSPERAVesting");
-  const vestingDeployment = await defender.deployProxy(VestingFactory, [], {
-    initializer: "initialize",
-    redeployImplementation: "always",
-  });
-  await vestingDeployment.waitForDeployment();
-  const vestingAddress = await vestingDeployment.getAddress();
+  const vestingContract = await upgrades.deployProxy(VestingFactory, [], { initializer: false });
+  await vestingContract.waitForDeployment();
+  const vestingAddress = await vestingContract.getAddress();
   console.log(`PROSPERAVesting deployed to ${vestingAddress}`);
 
-  // Deploy main PROSPERA contract (includes on-chain metadata)
+  // Deploy main PROSPERA contract
   const PROSPERAFactory = await ethers.getContractFactory("PROSPERA");
-  const prosperaDeployment = await defender.deployProxy(
-    PROSPERAFactory,
-    [{
-      deployerWallet: gnosisSafeWallet,
-      usdcToken: usdcTokenAddress,
-      taxWallet: taxWallet,
-      stakingWallet: stakingWallet,
-      icoWallet: icoWallet,
-      prosicoWallet: prosicoWallet,
-      liquidityWallet: liquidityWallet,
-      farmingWallet: farmingWallet,
-      listingWallet: listingWallet,
-      reserveWallet: reserveWallet,
-      marketingWallet: marketingWallet,
-      teamWallet: teamWallet,
-      devWallet: devWallet,
-      stakingContract: stakingAddress,
-      vestingContract: vestingAddress,
-      icoContract: icoAddress,
-      mathContract: mathAddress
-    }],
-    {
-      initializer: "initialize",
-      redeployImplementation: "always",
-    }
-  );
 
-  await prosperaDeployment.waitForDeployment();
-  const prosperaAddress = await prosperaDeployment.getAddress();
-  console.log(`PROSPERA main contract deployed to ${prosperaAddress}`);
+  // Prepare the parameters for PROSPERA initialization
+  const initializeArgs = [
+    deployer.address,
+    taxWallet,
+    stakingWallet,
+    icoWallet,
+    prosicoWallet,
+    liquidityWallet,
+    farmingWallet,
+    listingWallet,
+    reserveWallet,
+    marketingWallet,
+    teamWallet,
+    devWallet,
+    stakingAddress,
+    vestingAddress,
+    icoAddress,
+    mathAddress
+  ];
 
-  // Get the deployed contract instances
-  const prospera = await ethers.getContractAt("PROSPERA", prosperaAddress);
-  const prosperaVesting = await ethers.getContractAt("PROSPERAVesting", vestingAddress);
+  const { contract: prospera, address: prosperaAddress } = await deployAndSaveProxy("PROSPERA", PROSPERAFactory, initializeArgs);
+
+  console.log("PROSPERA main contract initialized");
 
   // Initialize child contracts with PROSPERA address
-  const mathContract = await ethers.getContractAt("PROSPERAMath", mathAddress);
   await mathContract.initialize(prosperaAddress);
   console.log("PROSPERAMath initialized with PROSPERA address");
 
-  const stakingContract = await ethers.getContractAt("PROSPERAStaking", stakingAddress);
   await stakingContract.initialize(prosperaAddress);
   console.log("PROSPERAStaking initialized with PROSPERA address");
 
-  const icoContract = await ethers.getContractAt("PROSPERAICO", icoAddress);
   await icoContract.initialize(prosperaAddress, icoWallet, prosicoWallet);
   console.log("PROSPERAICO initialized with PROSPERA address");
 
-  await prosperaVesting.initialize(prosperaAddress);
+  await vestingContract.initialize(prosperaAddress);
   console.log("PROSPERAVesting initialized with PROSPERA address");
 
   // Verify token minting and distribution
@@ -158,18 +152,34 @@ async function main() {
   }
 
   // Transfer ownership of all contracts to the Gnosis Safe wallet
-  const contracts = [prospera, mathContract, stakingContract, icoContract, prosperaVesting];
+  const contracts = [prospera, mathContract, stakingContract, icoContract, vestingContract];
   for (const contract of contracts) {
-    if ((await contract.owner()) !== gnosisSafeWallet) {
+    const currentOwner = await contract.owner();
+    if (currentOwner !== gnosisSafeWallet) {
+      console.log(`Transferring ownership of ${await contract.getAddress()} from ${currentOwner} to ${gnosisSafeWallet}`);
       const transferTx = await contract.transferOwnership(gnosisSafeWallet);
       await transferTx.wait();
       console.log(`Ownership of ${await contract.getAddress()} transferred to Gnosis Safe wallet: ${gnosisSafeWallet}`);
+    } else {
+      console.log(`${await contract.getAddress()} is already owned by ${gnosisSafeWallet}`);
     }
   }
 
   // Verify total supply
   const totalSupply = await prospera.totalSupply();
   console.log(`Total supply: ${ethers.formatEther(totalSupply)} PROS`);
+
+  // Save proxy addresses
+  const proxyAddresses = {
+    PROSPERA: prosperaAddress,
+    PROSPERAMath: mathAddress,
+    PROSPERAStaking: stakingAddress,
+    PROSPERAICO: icoAddress,
+    PROSPERAVesting: vestingAddress
+  };
+
+  fs.writeFileSync('proxyAddresses.json', JSON.stringify(proxyAddresses, null, 2));
+  console.log("Proxy addresses saved to proxyAddresses.json");
 
   console.log("PROSPERA deployment and initialization completed successfully.");
 }
