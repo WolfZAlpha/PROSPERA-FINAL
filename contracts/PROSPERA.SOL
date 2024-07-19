@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: PROPRIETARY - PROSPERA.sol main contract
+// SPDX-License-Identifier: 
 pragma solidity 0.8.20;
 
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -188,73 +188,82 @@ contract PROSPERA is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable, 
 
     /// @notice Initializes the contract with the specified parameters
     /// @dev This function sets up the initial state of the contract, including setting up wallets and minting the total supply
+    /// @notice Initializes the contract with the specified parameters
+    /// @dev This function sets up the initial state of the contract, including setting up wallets and minting the total supply
+    bool private _initialized;
+    bool private _initializing;
+
     function initialize(
-        address _deployerWallet,
+        address deployerWallet,
+        address stakingWalletParam,
+        address liquidityWallet,
+        address farmingWallet,
+        address listingWallet,
+        address reserveWallet,
+        address marketingWallet,
+        address teamWallet,
+        address devWallet,
+        address prosicoWalletParam
+    ) external initializer {
+        require(!_initialized, "Contract instance has already been initialized");
+        _initializing = true;
+
+        __ERC20_init("PROSPERA", "PROS");
+        __ERC20Burnable_init();
+        __ERC20Pausable_init();
+        __Ownable_init(deployerWallet);
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
+
+        stakingWallet = stakingWalletParam;
+        prosicoWallet = prosicoWalletParam;
+        StorageSlot.getAddressSlot(STAKING_WALLET_SLOT).value = stakingWallet;
+        StorageSlot.getAddressSlot(LIQUIDITY_WALLET_SLOT).value = liquidityWallet;
+        StorageSlot.getAddressSlot(FARMING_WALLET_SLOT).value = farmingWallet;
+        StorageSlot.getAddressSlot(LISTING_WALLET_SLOT).value = listingWallet;
+        StorageSlot.getAddressSlot(RESERVE_WALLET_SLOT).value = reserveWallet;
+        StorageSlot.getAddressSlot(MARKETING_WALLET_SLOT).value = marketingWallet;
+        StorageSlot.getAddressSlot(TEAM_WALLET_SLOT).value = teamWallet;
+        StorageSlot.getAddressSlot(DEV_WALLET_SLOT).value = devWallet;
+
+        emit Initialized(deployerWallet);
+        emit WalletAddressSet("Staking Wallet", stakingWallet);
+        emit WalletAddressSet("Liquidity Wallet", liquidityWallet);
+        emit WalletAddressSet("Farming Wallet", farmingWallet);
+        emit WalletAddressSet("Listing Wallet", listingWallet);
+        emit WalletAddressSet("Reserve Wallet", reserveWallet);
+        emit WalletAddressSet("Marketing Wallet", marketingWallet);
+        emit WalletAddressSet("Team Wallet", teamWallet);
+        emit WalletAddressSet("Dev Wallet", devWallet);
+        emit WalletAddressSet("Prosico Wallet", prosicoWallet);
+
+        _initializing = false;
+        _initialized = true;
+    }
+
+    function setAdditionalAddresses(
         address _taxWallet,
-        address _stakingWallet,
         address _icoWallet,
-        address _prosicoWallet,
-        address _liquidityWallet,
-        address _farmingWallet,
-        address _listingWallet,
-        address _reserveWallet,
-        address _marketingWallet,
-        address _teamWallet,
-        address _devWallet,
         address _stakingContract,
         address _vestingContract,
         address _icoContract,
         address _mathContract
-    ) initializer external {
-        __ERC20_init("PROSPERA", "PROS");
-        __ERC20Burnable_init();
-        __ERC20Pausable_init();
-        __Ownable_init(_deployerWallet);
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
-
+    ) external onlyOwner {
+        require(_initialized && !_initializing, "Contract is not initialized");
+    
         taxWallet = _taxWallet;
-        stakingWallet = _stakingWallet;
         icoWallet = _icoWallet;
-        prosicoWallet = _prosicoWallet;
-
-        StorageSlot.getAddressSlot(STAKING_WALLET_SLOT).value = stakingWallet;
-        StorageSlot.getAddressSlot(LIQUIDITY_WALLET_SLOT).value = _liquidityWallet;
-        StorageSlot.getAddressSlot(FARMING_WALLET_SLOT).value = _farmingWallet;
-        StorageSlot.getAddressSlot(LISTING_WALLET_SLOT).value = _listingWallet;
-        StorageSlot.getAddressSlot(RESERVE_WALLET_SLOT).value = _reserveWallet;
-        StorageSlot.getAddressSlot(MARKETING_WALLET_SLOT).value = _marketingWallet;
-        StorageSlot.getAddressSlot(TEAM_WALLET_SLOT).value = _teamWallet;
-        StorageSlot.getAddressSlot(DEV_WALLET_SLOT).value = _devWallet;
-
-        // Mint and distribute tokens
-        _mint(stakingWallet, STAKING_SUPPLY);
-        _mint(_liquidityWallet, LIQUIDITY_SUPPLY);
-        _mint(_farmingWallet, FARMING_SUPPLY);
-        _mint(_listingWallet, LISTING_SUPPLY);
-        _mint(_reserveWallet, RESERVE_SUPPLY);
-        _mint(_marketingWallet, MARKETING_SUPPLY);
-        _mint(_teamWallet, TEAM_SUPPLY);
-        _mint(_devWallet, DEV_SUPPLY);
-        _mint(prosicoWallet, ICO_SUPPLY);
-
         stakingContract = _stakingContract;
         vestingContract = _vestingContract;
         icoContract = _icoContract;
         mathContract = _mathContract;
 
-        emit Initialized(_deployerWallet);
-        emit WalletAddressSet("Tax Wallet", taxWallet);
-        emit WalletAddressSet("Staking Wallet", stakingWallet);
-        emit WalletAddressSet("ICO Wallet", icoWallet);
-        emit WalletAddressSet("Prosico Wallet", prosicoWallet);
-        emit WalletAddressSet("Liquidity Wallet", _liquidityWallet);
-        emit WalletAddressSet("Farming Wallet", _farmingWallet);
-        emit WalletAddressSet("Listing Wallet", _listingWallet);
-        emit WalletAddressSet("Reserve Wallet", _reserveWallet);
-        emit WalletAddressSet("Marketing Wallet", _marketingWallet);
-        emit WalletAddressSet("Team Wallet", _teamWallet);
-        emit WalletAddressSet("Dev Wallet", _devWallet);
+        emit WalletAddressSet("Tax Wallet", _taxWallet);
+        emit WalletAddressSet("ICO Wallet", _icoWallet);
+        emit WalletAddressSet("Staking Contract", _stakingContract);
+        emit WalletAddressSet("Vesting Contract", _vestingContract);
+        emit WalletAddressSet("ICO Contract", _icoContract);
+        emit WalletAddressSet("Math Contract", _mathContract);
     }
 
     /// @notice Returns the token metadata
